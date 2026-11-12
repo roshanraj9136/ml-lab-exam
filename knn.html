@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3 · KNN · DSL501 Lab Exam</title>
+<meta name="description" content="Concise pen-and-paper prep for DSL501 Labs 6-11: Decision Tree, Random Forest, KNN, Neural Networks, CNN, RNN & Variants.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Zilla+Slab:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<script>
+try{const t=localStorage.getItem('dsl501.theme');if(t)document.documentElement.dataset.theme=t;}catch(_){}
+window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]},svg:{fontCache:'global'},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js" integrity="sha384-KKWa9jJ1MZvssLeOoXG6FiOAZfAgmzsIIfw8BXwI9+kYm0lPCbC6yTQPBC00F1/L" crossorigin="anonymous"></script>
+<script defer src="app.js"></script>
+</head>
+<body>
+<nav class="topnav" aria-label="Pages"><a href="./" class="home">Home</a><a href="dt.html">1 · Decision Tree</a><a href="rf.html">2 · Random Forest</a><a href="knn.html" aria-current="page">3 · KNN</a><a href="nn.html">4 · Neural Nets</a><a href="cnn.html">5 · CNN</a><a href="rnn.html">6 · RNN & Variants</a><a href="cheatsheet.html">Cheat Sheet</a><button type="button" class="theme-btn" id="theme-toggle" aria-label="Toggle color theme">Theme</button></nav>
+<div class="wrap">
+<header class="top">
+  <div class="kicker">Topic 3 · Lab 6 (Part A + Breast Cancer Task)</div>
+  <h1>K-Nearest Neighbours (KNN)</h1>
+  <div class="meta">
+    <span class="pill green">Scratch NumPy + sklearn</span>
+    <span class="pill">~20 min read</span>
+    <span class="pill amber">Expect: Distance/vote code + scaling why + trace</span>
+  </div>
+  <p class="lede">KNN fits no equation during training. It memorizes the training data; for any new query, it measures distances, grabs the <i>K</i> closest training points, and predicts the majority class.</p>
+</header>
+
+<div class="roadmap"><span class="label">On this page</span>
+<ol>
+  <li><a href="#intuition">1. Plain Intuition</a></li>
+  <li><a href="#formulas">2. Core Formulas &amp; Theory</a></li>
+  <li><a href="#code">3. Pen-and-Paper Code (Lab 6)</a></li>
+  <li><a href="#trace">4. Worked Hand-Trace + Practice</a></li>
+  <li><a href="#checks">5. Scaling &amp; Bias–Variance Checks</a></li>
+</ol></div>
+
+<h2 id="intuition">1. Plain Intuition</h2>
+<div class="box-intuition">
+  <span class="label">Non-parametric &amp; Lazy Learner</span>
+  <p><b>Training cost:</b> zero (just store <code>X_train, y_train</code>). <b>Test cost:</b> \(O(n_{\text{train}}\cdot d)\) per query because you compute distance to every stored training sample.</p>
+  <p>Because it uses raw distances, <b>feature scaling is mandatory</b>: if Feature A is in \([1000, 50000]\) and Feature B is in \([0.1, 0.9]\), Feature A completely hijacks the distance!</p>
+</div>
+
+<h2 id="formulas">2. Core Formulas</h2>
+<div class="box-formula">
+  <span class="label">Distance, Majority Rule, Scaling &amp; Dimensionality</span>
+  <ul>
+    <li><b>Euclidean Distance:</b> \(d(x, z) = \sqrt{\sum_{j=1}^d (x_j - z_j)^2}\)</li>
+    <li><b>Manhattan Distance:</b> \(d_1(x, z) = \sum_{j=1}^d |x_j - z_j|\)</li>
+    <li><b>KNN Probability &amp; Prediction:</b> \(\hat{P}(Y=c\mid X=x) = \frac{1}{K}\sum_{i\in N_K(x)} \mathbf{1}(y_i = c), \quad \hat{y} = \arg\max_c \sum_{i\in N_K(x)} \mathbf{1}(y_i = c)\)</li>
+    <li><b>Standardization:</b> \(z_j = \frac{x_j - \mu_j}{\sigma_j}\) (computed on training fold ONLY!)</li>
+    <li><b>Curse of Dimensionality:</b> Hypercube edge needed to capture fraction \(r\) of points in \(p\) dims is \(l_p(r) = r^{1/p}\) (e.g., \(p=10, r=0.1 \implies 0.1^{0.1} \approx 0.794\), so nearest neighbors stop being local).</li>
+  </ul>
+</div>
+
+<h2 id="code">3. Pen-and-Paper Code (Lab 6)</h2>
+<div class="codeblock">
+  <div class="codehead"><span>Lab 6 · KNN from Scratch (NumPy)</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>import numpy as np
+
+def euclidean_distances(X_train, x_query):
+    return np.sqrt(np.sum((X_train - x_query) ** 2, axis=1))
+
+def get_nearest_indices(distances, k):
+    return np.argsort(distances)[:k]
+
+def majority_vote(labels):
+    classes, counts = np.unique(labels, return_counts=True)
+    return classes[np.argmax(counts)]
+
+def knn_predict_one(X_train, y_train, x_query, k):
+    distances = euclidean_distances(X_train, x_query)
+    nearest_idx = get_nearest_indices(distances, k)
+    nearest_labels = y_train[nearest_idx]
+    return majority_vote(nearest_labels)
+
+def knn_predict(X_train, y_train, X_query, k):
+    return np.array([knn_predict_one(X_train, y_train, x, k) for x in X_query])</code></pre>
+</div>
+
+<div class="codeblock">
+  <div class="codehead"><span>Lab 6 · sklearn Leakage-Free Pipeline + GridSearchCV</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>from sklearn.model_selection import StratifiedKFold, GridSearchCV
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.neighbors import KNeighborsClassifier
+
+knn_pipeline = Pipeline([
+    ("scaler", StandardScaler()),
+    ("knn", KNeighborsClassifier()),
+])
+
+knn_param_grid = {
+    "knn__n_neighbors": list(range(1, 32, 2)),  # odd K prevents binary ties
+    "knn__weights": ["uniform", "distance"],
+    "knn__metric": ["euclidean", "manhattan"],
+}
+
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+knn_grid = GridSearchCV(knn_pipeline, knn_param_grid, cv=cv, scoring="accuracy")
+knn_grid.fit(X_train, y_train)
+test_acc = knn_grid.score(X_test, y_test)</code></pre>
+</div>
+
+<div class="box-trap">
+  <span class="label">Classic Exam Trap: Data Leakage</span>
+  <p>Never run <code>scaler.fit_transform(X_train)</code> <b>before</b> cross-validation! Put <code>StandardScaler()</code> inside <code>Pipeline</code> so each CV fold computes \(\mu_j, \sigma_j\) strictly from its training split.</p>
+</div>
+
+<h2 id="trace">4. Worked Hand-Trace (Lab 6 Toy Points) + Practice</h2>
+<div class="box-trace">
+  <span class="label">Exact Lab 6 Manual Example</span>
+  <p>Training points: \(A=(1,1)\to 0,\; B=(2,1)\to 0,\; C=(4,3)\to 1,\; D=(5,4)\to 1\). Query \(x_q=(3,2)\), \(K=3\):</p>
+  <ol>
+    <li>\(d(x_q, A) = \sqrt{(3-1)^2+(2-1)^2} = \sqrt{5} \approx 2.2361\)</li>
+    <li>\(d(x_q, B) = \sqrt{(3-2)^2+(2-1)^2} = \sqrt{2} \approx 1.4142\)</li>
+    <li>\(d(x_q, C) = \sqrt{(3-4)^2+(2-3)^2} = \sqrt{2} \approx 1.4142\)</li>
+    <li>\(d(x_q, D) = \sqrt{(3-5)^2+(2-4)^2} = \sqrt{8} \approx 2.8284\)</li>
+    <li>Nearest 3: \([B(0),\; C(1),\; A(0)] \implies\) counts `{0: 2, 1: 1}` &rarr; Predict <b>0</b>.</li>
+  </ol>
+</div>
+
+<div class="gen" data-gen="knn_dist"></div>
+
+<h2 id="checks">5. Quick Exam Self-Checks</h2>
+<details class="check">
+  <summary><span class="k">Check 1</span>How does changing <i>K</i> affect bias, variance, and decision boundary? (Flexibility = 1/K)</summary>
+  <div class="ans">
+    <ul>
+      <li><b>Small <i>K</i> (e.g., <i>K</i>=1):</b> High flexibility, low bias, <b>high variance</b> (jagged boundary, sensitive to noise, 0 training error on distinct points).</li>
+      <li><b>Large <i>K</i> (e.g., <i>K</i>=25 or <i>n</i>):</b> Low flexibility, <b>high bias</b>, low variance (smooth boundary; at \(K=n\), predicts overall majority class everywhere).</li>
+    </ul>
+  </div>
+</details>
+<details class="check">
+  <summary><span class="k">Check 2</span>What happened in Lab 6 Breast Cancer when scaling was removed?</summary>
+  <div class="ans"><p>5-fold CV accuracy dropped from <b>0.972</b> (with <code>StandardScaler</code> in Pipeline) to <b>0.946</b> (unscaled) because features like <i>area</i> (~1000) drowned out features like <i>smoothness</i> (~0.1).</p></div>
+</details>
+
+<label class="done"><input type="checkbox" data-done="knn"> Mark Topic 3 (KNN) done</label>
+<div class="pager"><a href="rf.html">&larr; 2 · Random Forest</a><a href="nn.html">4 · Neural Nets &rarr;</a></div>
+<footer>DSL501:ML-2026-27M · Offline Pen/Paper Lab Exam Prep (Covers Labs 6–11 only)</footer>
+</div>
+</body>
+</html>

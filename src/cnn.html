@@ -1,0 +1,159 @@
+<header class="top">
+  <div class="kicker">Topic 5 · Lab 10 (CNNs, Classic Architectures &amp; Siamese)</div>
+  <h1>Convolutional Neural Networks (CNN)</h1>
+  <div class="meta">
+    <span class="pill green">PyTorch + Shape/Param Math</span>
+    <span class="pill">~25 min read</span>
+    <span class="pill amber">Expect: Spatial size/params + CustomCNN/Siamese</span>
+  </div>
+  <p class="lede">Instead of connecting every pixel to every neuron, a CNN slides small \(F\times F\) filters across an image. That gives <b>local connectivity</b> and <b>weight sharing</b>—slashing parameters by orders of magnitude.</p>
+</header>
+
+<div class="roadmap"><span class="label">On this page</span>
+<ol>
+  <li><a href="#math">1. Spatial Size &amp; Parameter Formulas</a></li>
+  <li><a href="#code">2. PyTorch Models to Write (Lab 10)</a></li>
+  <li><a href="#archs">3. Architectures &amp; ReLU Vis Rules</a></li>
+  <li><a href="#trace">4. Hand Convolution + Practice</a></li>
+</ol></div>
+
+<h2 id="math">1. Spatial Size &amp; Parameter Formulas (Memorize Cold)</h2>
+<div class="box-formula">
+  <span class="label">The 4 CNN Exam Equations</span>
+  <p>For input \(W_1 \times H_1 \times C_{\text{in}}\), filter size \(F\), stride \(S\), padding \(P\), and \(K\) filters:</p>
+  \[W_2 = \left\lfloor \frac{W_1 - F + 2P}{S} \right\rfloor + 1, \qquad D_2 = K\]
+  <ul>
+    <li><b>Same spatial size (\(S=1\)):</b> \(P = \frac{F - 1}{2}\) (so \(F=3 \implies P=1\); \(F=5 \implies P=2\)).</li>
+    <li><b>Conv2d parameters (with bias):</b> \(\text{Params} = (F \cdot F \cdot C_{\text{in}} + 1) \cdot K\).</li>
+    <li><b>Conv2d multiplications (FLOPs):</b> \(W_2 \cdot H_2 \cdot K \cdot (F \cdot F \cdot C_{\text{in}})\).</li>
+    <li><b>Pooling (`MaxPool2d`, `AvgPool2d`):</b> <b>0 learnable parameters!</b> Depth \(D_2 = C_{\text{in}}\).</li>
+    <li><b>Siamese Contrastive Loss (Lab 10):</b> \(L = y D^2 + (1-y)\max(0, m - D)^2\), where \(D = \|z_a - z_b\|_2\), \(y\in\{0,1\}\) (`1` = same class).</li>
+  </ul>
+</div>
+
+<h2 id="code">2. PyTorch Models to Write on Paper (Lab 10)</h2>
+<div class="codeblock">
+  <div class="codehead"><span>Lab 10 · BasicCNN &amp; CustomCNN (5-Class CIFAR-10 Assignment)</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class BasicCNN(nn.Module):
+    # Input: (B, 1, 32, 32)
+    def __init__(self, num_classes=10):
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(1, 8, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),   # -&gt; 8x16x16
+            nn.Conv2d(8, 16, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),  # -&gt; 16x8x8
+        )
+        self.classifier = nn.Linear(16 * 8 * 8, num_classes)
+
+    def forward(self, x):
+        return self.classifier(self.features(x).flatten(1))
+
+class CustomCNN(nn.Module):
+    # Input: (B, 3, 32, 32) -&gt; 5 classes (402,341 params)
+    def __init__(self, num_classes=5):
+        super().__init__()
+        self.block1 = nn.Sequential(
+            nn.Conv2d(3, 32, 3, stride=1, padding=1), nn.ReLU(),
+            nn.Conv2d(32, 32, 3, stride=1, padding=1), nn.ReLU(),
+            nn.MaxPool2d(2, stride=2),      # -&gt; 32 x 16 x 16
+        )
+        self.block2 = nn.Sequential(
+            nn.Conv2d(32, 64, 3, stride=1, padding=1), nn.ReLU(),
+            nn.Conv2d(64, 64, 3, stride=1, padding=1), nn.ReLU(),
+            nn.MaxPool2d(2, stride=2),      # -&gt; 64 x 8 x 8
+        )
+        self.block3 = nn.Sequential(
+            nn.Conv2d(64, 128, 3, stride=1, padding=1), nn.ReLU(),
+            nn.MaxPool2d(2, stride=2),      # -&gt; 128 x 4 x 4
+        )
+        self.head = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(128 * 4 * 4, 128), nn.ReLU(),
+            nn.Dropout(0.4),
+            nn.Linear(128, num_classes),
+        )
+
+    def forward(self, x):
+        return self.head(self.block3(self.block2(self.block1(x))))</code></pre>
+</div>
+
+<div class="codeblock">
+  <div class="codehead"><span>Lab 10 · LeNet5 &amp; SiameseNetwork with Contrastive Loss</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>class LeNet5(nn.Module):
+    def __init__(self, num_classes=10):
+        super().__init__()
+        self.conv1 = nn.Conv2d(1, 6, 5)      # 32 -&gt; 28
+        self.pool = nn.AvgPool2d(2)          # 28 -&gt; 14; 10 -&gt; 5
+        self.conv2 = nn.Conv2d(6, 16, 5)     # 14 -&gt; 10
+        self.conv3 = nn.Conv2d(16, 120, 5)   # 5 -&gt; 1
+        self.fc1 = nn.Linear(120, 84)
+        self.fc2 = nn.Linear(84, num_classes)
+
+    def embedding(self, x):
+        x = self.pool(torch.tanh(self.conv1(x)))
+        x = self.pool(torch.tanh(self.conv2(x)))
+        x = torch.tanh(self.conv3(x)).flatten(1)
+        return torch.tanh(self.fc1(x))
+
+    def forward(self, x):
+        return self.fc2(self.embedding(x))
+
+class SiameseNetwork(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.encoder = LeNet5(num_classes=10)
+        self.encoder.fc2 = nn.Identity()
+
+    def forward(self, a, b):
+        za = F.normalize(self.encoder.embedding(a), dim=1)
+        zb = F.normalize(self.encoder.embedding(b), dim=1)
+        return za, zb
+
+def pair_distance(za, zb):
+    return torch.norm(za - zb, dim=1)
+
+def contrastive_loss(za, zb, same, margin=1.0):
+    d = pair_distance(za, zb)
+    return (same * d.square() + (1 - same) * F.relu(margin - d).square()).mean()</code></pre>
+</div>
+
+<h2 id="archs">3. Architectures &amp; Key Exam Concepts (Lab 10 + CNN.pdf)</h2>
+<div class="tbl"><table>
+  <tr><th>Model</th><th>Key Signature Idea</th><th>Why Examiners Ask It</th></tr>
+  <tr><td><b>LeNet-5</b></td><td><code>5×5</code> convs, <code>AvgPool(2)</code>, <code>tanh</code></td><td>Classic digit recognizer; `conv3(5×5)` maps `16×5×5 &rarr; 120×1×1`</td></tr>
+  <tr><td><b>AlexNet</b></td><td><code>11×11 s=4</code>, ReLU, Dropout, 2 GPUs</td><td>Most params sit in giant FC layers (`9216 &rarr; 4096 &rarr; 4096`)</td></tr>
+  <tr><td><b>VGG-16</b></td><td>Only stacked <code>3×3</code> convs + <code>2×2</code> MaxPool</td><td>Two `3×3` convs = `5×5` receptive field with fewer params (\(18C^2 &lt; 25C^2\)) + 2 ReLUs</td></tr>
+  <tr><td><b>GoogLeNet</b></td><td>Parallel Inception branches + <b>1×1 bottleneck</b> + GAP</td><td>`1×1` conv slashes channel depth before `3×3`/`5×5`; GAP drops FC params (12× smaller than AlexNet); aux losses (`+0.3`)</td></tr>
+  <tr><td><b>ResNet</b></td><td>Skip connection \(y = F(x) + x\)</td><td>Fixes <b>degradation</b> (56-layer plain net has <i>higher train error</i> than 20-layer); \(\frac{\partial y}{\partial x} = \frac{\partial F}{\partial x} + I\) keeps gradients alive</td></tr>
+</table></div>
+
+<div class="tbl"><table>
+  <tr><th>ReLU Backward Rule (\(h_{i+1}=\max(0,h_i)\), grad \(g_{i+1}\))</th><th>Blocks \(h_i &lt; 0\)?</th><th>Blocks \(g_{i+1} &lt; 0\)?</th></tr>
+  <tr><td><b>Vanilla Backprop</b></td><td>Yes</td><td>No</td></tr>
+  <tr><td><b>Deconvnet</b></td><td>No</td><td>Yes</td></tr>
+  <tr><td><b>Guided Backpropagation</b> (sharpest visualizations)</td><td>Yes</td><td>Yes</td></tr>
+</table></div>
+
+<h2 id="trace">4. Hand Convolution + Param Check + Practice</h2>
+<div class="box-trace">
+  <span class="label">Hand 2D Cross-Correlation (CNN.pdf Q12)</span>
+  <p>Input \(I = \begin{bmatrix}1&amp;2&amp;0&amp;1\\0&amp;1&amp;3&amp;2\\2&amp;1&amp;0&amp;1\\1&amp;0&amp;2&amp;3\end{bmatrix}\), Filter \(K = \begin{bmatrix}1&amp;0&amp;-1\\1&amp;0&amp;-1\\1&amp;0&amp;-1\end{bmatrix}\), \(S=1, P=0\):</p>
+  <ol>
+    <li>Output size: \((4 - 3 + 0)/1 + 1 = 2 \times 2\).</li>
+    <li>Top-left: \((1+0+2) - (0+3+0) = 0\). Top-right: \((2+1+1) - (1+2+1) = 0\).</li>
+    <li>Bottom-left: \((0+2+1) - (3+0+2) = -2\). Bottom-right: \((1+1+0) - (2+1+3) = -4\).</li>
+    <li>Result: \(\begin{bmatrix}0 &amp; 0\\-2 &amp; -4\end{bmatrix}\). This filter detects <b>vertical edges</b> (left minus right). Same-size padding: \(P=(3-1)/2=1\).</li>
+  </ol>
+</div>
+
+<div class="box-trick">
+  <span class="label">Why 1×1 Bottlenecks Work (GoogLeNet Q18)</span>
+  <p>On a `28×28×192` input, direct `5×5×32` takes `(25×192+1)×32 = 153,632` params and `120.4M` mults. Putting `1×1×16` first drops params to `15,920` and mults to `12.4M` (<b>9.68× fewer FLOPs!</b>).</p>
+</div>
+
+<div class="gen" data-gen="cnn_shape"></div>
+
+<label class="done"><input type="checkbox" data-done="cnn"> Mark Topic 5 (CNN) done</label>

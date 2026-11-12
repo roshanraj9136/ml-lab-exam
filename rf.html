@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>2 · Random Forest · DSL501 Lab Exam</title>
+<meta name="description" content="Concise pen-and-paper prep for DSL501 Labs 6-11: Decision Tree, Random Forest, KNN, Neural Networks, CNN, RNN & Variants.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Zilla+Slab:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<script>
+try{const t=localStorage.getItem('dsl501.theme');if(t)document.documentElement.dataset.theme=t;}catch(_){}
+window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]},svg:{fontCache:'global'},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js" integrity="sha384-KKWa9jJ1MZvssLeOoXG6FiOAZfAgmzsIIfw8BXwI9+kYm0lPCbC6yTQPBC00F1/L" crossorigin="anonymous"></script>
+<script defer src="app.js"></script>
+</head>
+<body>
+<nav class="topnav" aria-label="Pages"><a href="./" class="home">Home</a><a href="dt.html">1 · Decision Tree</a><a href="rf.html" aria-current="page">2 · Random Forest</a><a href="knn.html">3 · KNN</a><a href="nn.html">4 · Neural Nets</a><a href="cnn.html">5 · CNN</a><a href="rnn.html">6 · RNN & Variants</a><a href="cheatsheet.html">Cheat Sheet</a><button type="button" class="theme-btn" id="theme-toggle" aria-label="Toggle color theme">Theme</button></nav>
+<div class="wrap">
+<header class="top">
+  <div class="kicker">Topic 2 · Lab 7 (Part B + Part C Contrast)</div>
+  <h1>Random Forest</h1>
+  <div class="meta">
+    <span class="pill green">Scratch NumPy</span>
+    <span class="pill">~15 min read</span>
+    <span class="pill amber">Expect: RF class + variance/OOB theory</span>
+  </div>
+  <p class="lede">A single deep tree memorizes noise (high variance). Random Forest fixes this by training many trees on bootstrap samples and letting each split see only a random subset of features, then majority-voting.</p>
+</header>
+
+<div class="roadmap"><span class="label">On this page</span>
+<ol>
+  <li><a href="#intuition">1. Plain Intuition</a></li>
+  <li><a href="#formulas">2. OOB &amp; Variance Formulas</a></li>
+  <li><a href="#code">3. Pen-and-Paper Code (Lab 7)</a></li>
+  <li><a href="#compare">4. Bagging vs RF vs AdaBoost</a></li>
+  <li><a href="#drill">5. Practice + Self-Checks</a></li>
+</ol></div>
+
+<h2 id="intuition">1. Plain Intuition</h2>
+<div class="box-intuition">
+  <span class="label">Two sources of randomness = decorrelated trees</span>
+  <ol>
+    <li><b>Row randomness (Bootstrap):</b> Draw \(n\) samples <i>with replacement</i> for each tree.</li>
+    <li><b>Column randomness (Feature subsampling):</b> At every split, look only at \(m &lt; p\) randomly picked features (default \(m = \lfloor\sqrt{p}\rfloor\) for classification).</li>
+  </ol>
+  <p>Why both? Without column subsampling (plain Bagging), one dominant feature makes every tree look similar at the top—so averaging doesn't reduce variance as much.</p>
+</div>
+
+<h2 id="formulas">2. Formulas You Must Know</h2>
+<div class="box-formula">
+  <span class="label">OOB Share, Ensemble Variance &amp; Feature Subsets</span>
+  <p><b>1. Out-of-Bag (OOB) Probability:</b> Probability sample \(i\) is never picked in \(n\) bootstrap draws:</p>
+  \[P(\text{OOB}) = \left(1 - \frac{1}{n}\right)^n \xrightarrow{n\to\infty} e^{-1} \approx 0.368 \quad (\approx 36.8\%)\]
+  <p>So each tree leaves ~36.8% of data unseen—giving a built-in validation estimate (OOB error \(\approx\) CV/Test error).</p>
+  <p><b>2. Why Correlated Bagging Hits a Wall (Variance of Average of \(B\) Trees):</b></p>
+  \[\text{Var}\!\left(\frac{1}{B}\sum_{b=1}^{B} T_b\right) = \rho\sigma^2 + \frac{1 - \rho}{B}\sigma^2\]
+  <p>As \(B\to\infty\), the second term vanishes, leaving \(\rho\sigma^2\). Subsampling \(m\) features lowers pairwise tree correlation \(\rho\)!</p>
+  <p><b>3. Rule-of-Thumb Split Size:</b> \(m = \sqrt{p}\) (Classification), \(m \approx p/3\) (Regression).</p>
+</div>
+
+<h2 id="code">3. Pen-and-Paper Code (Lab 7)</h2>
+<div class="codeblock">
+  <div class="codehead"><span>Lab 7 · Bootstrap, Majority Vote &amp; RandomForestScratch</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>def bootstrap_indices(n_samples, rng):
+    return rng.choice(n_samples, size=n_samples, replace=True)
+
+def bootstrap_sample(X, y, rng):
+    indices = bootstrap_indices(len(X), rng)
+    return X[indices], y[indices], indices
+
+def majority_vote(predictions):
+    # predictions has shape (n_trees, n_samples)
+    result = []
+    for sample_votes in predictions.T:
+        values, counts = np.unique(sample_votes, return_counts=True)
+        result.append(values[np.argmax(counts)])
+    return np.array(result)
+
+class RandomForestScratch:
+    def __init__(self, n_trees=30, max_depth=5, max_features="sqrt",
+                 criterion="gini", random_state=42):
+        self.n_trees = n_trees
+        self.max_depth = max_depth
+        self.max_features = max_features
+        self.criterion = criterion
+        self.random_state = random_state
+        self.trees = []
+        self.bootstrap_indices_ = []
+
+    def fit(self, X, y):
+        X, y = np.asarray(X), np.asarray(y)
+        rng = np.random.default_rng(self.random_state)
+        self.trees, self.bootstrap_indices_ = [], []
+        for _ in range(self.n_trees):
+            X_boot, y_boot, indices = bootstrap_sample(X, y, rng)
+            tree = DecisionTreeScratch(
+                max_depth=self.max_depth,
+                max_features=self.max_features,
+                criterion=self.criterion,
+                random_state=int(rng.integers(0, 1_000_000)),
+            )
+            tree.fit(X_boot, y_boot)
+            self.trees.append(tree)
+            self.bootstrap_indices_.append(indices)
+        return self
+
+    def predict_all_trees(self, X):
+        return np.array([tree.predict(X) for tree in self.trees])
+
+    def predict(self, X):
+        return majority_vote(self.predict_all_trees(X))</code></pre>
+</div>
+
+<div class="box-trick">
+  <span class="label">1-Minute Memory Hook</span>
+  <p><code>RandomForestScratch.fit</code> = loop <code>n_trees</code> times: <code>bootstrap_sample(replace=True)</code> &rarr; create <code>DecisionTreeScratch(max_features="sqrt")</code> &rarr; <code>tree.fit(X_boot, y_boot)</code>. Predict = stack all tree predictions and take column-wise <code>majority_vote</code>.</p>
+</div>
+
+<h2 id="compare">4. Bagging vs Random Forest vs AdaBoost (Lab 7 Part C)</h2>
+<div class="tbl"><table>
+  <tr><th>Method</th><th>Training Order</th><th>Bootstrap?</th><th>Feature Subsample?</th><th>Main Goal</th></tr>
+  <tr><td><b>Bagging</b></td><td>Parallel</td><td>Yes</td><td>No (\(m = p\))</td><td>Reduce variance</td></tr>
+  <tr><td><b>Random Forest</b></td><td>Parallel</td><td>Yes</td><td>Yes (\(m = \sqrt{p}\))</td><td>Reduce variance + decorrelate trees (\(\downarrow \rho\))</td></tr>
+  <tr><td><b>AdaBoost (Lab 7 C)</b></td><td>Sequential (stumps)</td><td>No (reweights samples)</td><td>No</td><td>Reduce bias</td></tr>
+</table></div>
+
+<div class="box-trace">
+  <span class="label">Bonus · AdaBoost Formulas (Also in Lab 7 Part C!)</span>
+  <p>Map \(y \in \{0,1\} \to \{-1,+1\}\), initialize \(w_i = 1/n\), fit depth-1 stump:</p>
+  \[\text{err}_m = \sum_i w_i \mathbf{1}(y_i \neq \hat{y}_i), \quad \alpha_m = \frac{1}{2}\ln\!\left(\frac{1-\text{err}_m}{\text{err}_m}\right)\cdot \eta, \quad w_i \leftarrow \frac{w_i e^{-\alpha_m y_i \hat{y}_i}}{\sum_j w_j}\]
+  <p>Final prediction: \(\hat{y} = \mathbf{1}\!\left(\sum_{m=1}^{M} \alpha_m h_m(x) \ge 0\right)\).</p>
+</div>
+
+<h2 id="drill">5. Practice + Self-Checks</h2>
+<div class="gen" data-gen="rf_var"></div>
+
+<details class="check">
+  <summary><span class="k">Check 1</span>Does increasing <code>n_trees</code> in Random Forest cause overfitting?</summary>
+  <div class="ans"><p>No! More trees only tighten the ensemble average toward \(\rho\sigma^2\) without overfitting (unlike Boosting, where too many sequential rounds can overfit noisy points).</p></div>
+</details>
+<details class="check">
+  <summary><span class="k">Check 2</span>In Lab 7 Task 1, how did Gini vs Entropy compare on the binary Iris split?</summary>
+  <div class="ans"><p>Both single DT and RF (`n_trees=30, max_depth=5, max_features="sqrt"`) got identical <b>80.0%</b> test accuracy (`0.8000` macro F1) because Gini and Entropy rank splits almost identically.</p></div>
+</details>
+
+<label class="done"><input type="checkbox" data-done="rf"> Mark Topic 2 (Random Forest) done</label>
+<div class="pager"><a href="dt.html">&larr; 1 · Decision Tree</a><a href="knn.html">3 · KNN &rarr;</a></div>
+<footer>DSL501:ML-2026-27M · Offline Pen/Paper Lab Exam Prep (Covers Labs 6–11 only)</footer>
+</div>
+</body>
+</html>

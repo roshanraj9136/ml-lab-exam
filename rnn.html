@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>6 · RNN & Variants · DSL501 Lab Exam</title>
+<meta name="description" content="Concise pen-and-paper prep for DSL501 Labs 6-11: Decision Tree, Random Forest, KNN, Neural Networks, CNN, RNN & Variants.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Zilla+Slab:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<script>
+try{const t=localStorage.getItem('dsl501.theme');if(t)document.documentElement.dataset.theme=t;}catch(_){}
+window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]},svg:{fontCache:'global'},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js" integrity="sha384-KKWa9jJ1MZvssLeOoXG6FiOAZfAgmzsIIfw8BXwI9+kYm0lPCbC6yTQPBC00F1/L" crossorigin="anonymous"></script>
+<script defer src="app.js"></script>
+</head>
+<body>
+<nav class="topnav" aria-label="Pages"><a href="./" class="home">Home</a><a href="dt.html">1 · Decision Tree</a><a href="rf.html">2 · Random Forest</a><a href="knn.html">3 · KNN</a><a href="nn.html">4 · Neural Nets</a><a href="cnn.html">5 · CNN</a><a href="rnn.html" aria-current="page">6 · RNN & Variants</a><a href="cheatsheet.html">Cheat Sheet</a><button type="button" class="theme-btn" id="theme-toggle" aria-label="Toggle color theme">Theme</button></nav>
+<div class="wrap">
+<header class="top">
+  <div class="kicker">Topic 6 · Lab 11 + RNN / LSTM-GRU / Attention Question Banks</div>
+  <h1>RNN and Variants</h1>
+  <div class="meta">
+    <span class="pill green">Manual PyTorch Gates (No nn.LSTM)</span>
+    <span class="pill">~30 min read</span>
+    <span class="pill amber">Expect: Cell code + scalar/param math + BPTT bugs</span>
+  </div>
+  <p class="lede">In Lab 11, you built <b>RNN, LSTM, and GRU cells manually</b> using <code>nn.Linear</code> gates and unrolled loops—not PyTorch's built-in <code>nn.RNN/LSTM/GRU</code>. Know the 3 cells, parameter counts, vanishing-gradient fix, and T-BPTT.</p>
+</header>
+
+<div class="roadmap"><span class="label">On this page</span>
+<ol>
+  <li><a href="#eq">1. RNN vs LSTM vs GRU Equations</a></li>
+  <li><a href="#code">2. Manual PyTorch Code (Lab 11)</a></li>
+  <li><a href="#params">3. Param Counting + Vanishing Gradients</a></li>
+  <li><a href="#trace">4. Scalar Traces + Bug Drills + Practice</a></li>
+  <li><a href="#variants">5. Other Variants (Bi-RNN &amp; Attention)</a></li>
+</ol></div>
+
+<h2 id="eq">1. RNN vs LSTM vs GRU Equations</h2>
+<div class="box-formula">
+  <span class="label">Update Rules at Time Step \(t\)</span>
+  <ul>
+    <li><b>Vanilla RNN:</b> \(h_t = \tanh(W_x x_t + W_h h_{t-1} + b)\)</li>
+    <li><b>LSTM (state = \((h_t, c_t)\)):</b>
+      \[f_t = \sigma(W_f[x_t, h_{t-1}] + b_f), \quad i_t = \sigma(W_i[x_t, h_{t-1}] + b_i), \quad g_t = \tanh(W_g[x_t, h_{t-1}] + b_g)\]
+      \[c_t = f_t \odot c_{t-1} + i_t \odot g_t, \qquad o_t = \sigma(W_o[x_t, h_{t-1}] + b_o), \qquad h_t = o_t \odot \tanh(c_t)\]
+    </li>
+    <li><b>GRU (PyTorch / Lab 11 reset-before-linear convention):</b>
+      \[r_t = \sigma(W_{ir}x_t + W_{hr}h_{t-1} + b_r), \quad z_t = \sigma(W_{iz}x_t + W_{hz}h_{t-1} + b_z)\]
+      \[n_t = \tanh(W_{in}x_t + r_t \odot (W_{hn}h_{t-1} + b_{hn}) + b_{in}), \qquad h_t = (1 - z_t)\odot n_t + z_t\odot h_{t-1}\]
+    </li>
+  </ul>
+  <p><b>Why gates use \(\sigma\) and candidates use \(\tanh\)?</b> Gates act as smooth \(0..1\) valves (forget/keep/expose); candidates &amp; hidden states need \((-1, 1)\) range so values can add or subtract.</p>
+</div>
+
+<h2 id="code">2. Pen-and-Paper Code (Lab 11 Manual Cells &amp; Training)</h2>
+<div class="codeblock">
+  <div class="codehead"><span>Lab 11 · ManualRNNCell, ManualLSTMCell &amp; ManualGRUCell</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>import torch
+import torch.nn as nn
+
+class ManualRNNCell(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super().__init__()
+        self.input_to_hidden = nn.Linear(input_size, hidden_size)
+        self.hidden_to_hidden = nn.Linear(hidden_size, hidden_size, bias=False)
+
+    def forward(self, x_t, h_prev):
+        return torch.tanh(self.input_to_hidden(x_t) + self.hidden_to_hidden(h_prev))
+
+class ManualLSTMCell(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super().__init__()
+        combined = input_size + hidden_size
+        self.forget_gate = nn.Linear(combined, hidden_size)
+        self.input_gate = nn.Linear(combined, hidden_size)
+        self.candidate_gate = nn.Linear(combined, hidden_size)
+        self.output_gate = nn.Linear(combined, hidden_size)
+
+    def forward(self, x_t, state):
+        h_prev, c_prev = state
+        combined = torch.cat((x_t, h_prev), dim=-1)
+        f_t = torch.sigmoid(self.forget_gate(combined))
+        i_t = torch.sigmoid(self.input_gate(combined))
+        g_t = torch.tanh(self.candidate_gate(combined))
+        c_t = f_t * c_prev + i_t * g_t
+        o_t = torch.sigmoid(self.output_gate(combined))
+        h_t = o_t * torch.tanh(c_t)
+        return (h_t, c_t)
+
+class ManualGRUCell(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super().__init__()
+        self.W_ir = nn.Linear(input_size, hidden_size)
+        self.W_hr = nn.Linear(hidden_size, hidden_size)
+        self.W_iz = nn.Linear(input_size, hidden_size)
+        self.W_hz = nn.Linear(hidden_size, hidden_size)
+        self.W_in = nn.Linear(input_size, hidden_size)
+        self.W_hn = nn.Linear(hidden_size, hidden_size)
+
+    def forward(self, x_t, h_prev):
+        r_t = torch.sigmoid(self.W_ir(x_t) + self.W_hr(h_prev))
+        z_t = torch.sigmoid(self.W_iz(x_t) + self.W_hz(h_prev))
+        n_t = torch.tanh(self.W_in(x_t) + r_t * self.W_hn(h_prev))
+        return (1 - z_t) * n_t + z_t * h_prev</code></pre>
+</div>
+
+<div class="codeblock">
+  <div class="codehead"><span>Lab 11 · Unrolled Wrapper, Next-Token Model &amp; Training Loop (with T-BPTT &amp; Clipping)</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>class ManualRecurrent(nn.Module):
+    def __init__(self, kind, input_size, hidden_size):
+        super().__init__()
+        self.kind = kind.upper()
+        self.hidden_size = hidden_size
+        cells = {"RNN": ManualRNNCell, "LSTM": ManualLSTMCell, "GRU": ManualGRUCell}
+        self.cell = cells[self.kind](input_size, hidden_size)
+
+    def forward(self, embeddings, state=None):
+        B, T, _ = embeddings.shape
+        if state is None:
+            h = embeddings.new_zeros(B, self.hidden_size)
+            c = embeddings.new_zeros(B, self.hidden_size) if self.kind == "LSTM" else None
+        else:
+            h, c = state if self.kind == "LSTM" else (state, None)
+        outputs = []
+        for t in range(T):
+            x_t = embeddings[:, t, :]
+            if self.kind == "LSTM":
+                h, c = self.cell(x_t, (h, c))
+            else:
+                h = self.cell(x_t, h)
+            outputs.append(h)
+        final_state = (h, c) if self.kind == "LSTM" else h
+        return torch.stack(outputs, dim=1), final_state
+
+class ManualNextTokenModel(nn.Module):
+    def __init__(self, kind, vocab_size, embedding_dim, hidden_dim):
+        super().__init__()
+        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+        self.recurrent = ManualRecurrent(kind, embedding_dim, hidden_dim)
+        self.output_layer = nn.Linear(hidden_dim, vocab_size)
+
+    def forward(self, token_ids):
+        outputs, _ = self.recurrent(self.embedding(token_ids))
+        return self.output_layer(outputs)  # shape: (B, T, V)
+
+# Training loop key steps:
+criterion = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=0.003)
+for x, y in train_loader:
+    optimizer.zero_grad()
+    logits = model(x)
+    loss = criterion(logits.reshape(-1, logits.size(-1)), y.reshape(-1))
+    loss.backward()
+    nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+    optimizer.step()
+# Note for Stateful T-BPTT (Lab 11 Q1): pass detached state across chunks:
+# state = tuple(s.detach() for s in state) if isinstance(state, tuple) else state.detach()</code></pre>
+</div>
+
+<h2 id="params">3. Parameter Counting &amp; Vanishing Gradient Fix</h2>
+<div class="tbl"><table>
+  <tr><th>Cell (input \(d\), hidden \(h\))</th><th>Standard 1 Bias/Gate (Q4 PDF)</th><th>Lab 11 Code</th><th>Example (\(d=64, h=128\))</th></tr>
+  <tr><td><b>Vanilla RNN</b></td><td>\(h(d + h + 1)\)</td><td>\(h(d + h + 1)\)</td><td class="n">24,704</td></tr>
+  <tr><td><b>GRU</b> (3 gates)</td><td>\(3h(d + h + 1)\)</td><td>\(3h(d + h + 2)\) (separate \(W_{i*}, W_{h*}\) biases)</td><td class="n">74,112 (std)</td></tr>
+  <tr><td><b>LSTM</b> (4 gates)</td><td>\(4h(d + h + 1)\)</td><td>\(4h(d + h + 1)\)</td><td class="n">98,816</td></tr>
+</table></div>
+
+<div class="box-trap">
+  <span class="label">Refute the Myth (LSTM-GRU.pdf Q7): How Does LSTM Fix Vanishing Gradients?</span>
+  <p><b>FALSE:</b> "Because \(\sigma'(z) \approx 1\)." (Wrong—\(\max \sigma'(z) = 0.25\)!)</p>
+  <p><b>TRUE (Constant Error Carousel):</b> \(c_t = f_t \odot c_{t-1} + i_t \odot g_t\), so the direct path is \(\frac{\partial c_t}{\partial c_{t-1}} = f_t \implies \frac{\partial c_T}{\partial c_k} = \prod_{t=k+1}^T f_t\). There is <b>no \(\tanh\) or \(W_h\) multiplication</b> on the cell highway, so when \(f_t \approx 1\), gradients survive long horizons! (Gradient clipping fixes <i>exploding</i> gradients, not vanishing ones.)</p>
+</div>
+
+<h2 id="trace">4. Scalar Traces + Bug Drills + Practice</h2>
+<div class="box-trace">
+  <span class="label">Quick Scalar Traces (`RNN.pdf` Q1 &amp; `LSTM-GRU.pdf` Q2, Q5)</span>
+  <ul>
+    <li><b>Scalar RNN:</b> \(h_0=0, w_h=0.5, w_x=1, x=(1,0,-1) \implies h_1=\tanh(1)=0.7616,\; h_2=\tanh(0.3808)=0.3634,\; h_3=\tanh(0.1817-1)=-0.6741\).</li>
+    <li><b>Scalar LSTM:</b> \(c_{t-1}=0.8, f_t=0.9, i_t=0.2, g_t=-0.5, o_t=0.75 \implies c_t = 0.9(0.8)+0.2(-0.5) = \mathbf{0.6200},\; h_t = 0.75\tanh(0.62) = \mathbf{0.4133}\). After 20 steps: \(\partial c_{20}/\partial c_0 = 0.9^{20} = \mathbf{0.1216}\).</li>
+    <li><b>Scalar GRU:</b> \(h_{t-1}=0.6, z_t=0.75, r_t=0.5, x_t=1, w_x=0.4, w_h=1 \implies n_t = \tanh(0.4 + 0.5\times 0.6) = 0.6044,\; h_t = 0.25(0.6044) + 0.75(0.6) = \mathbf{0.6011}\). Direct \(\partial h_t/\partial h_{t-1} = z_t = 0.75\). If \(z_t \to 1\): keeps \(h_{t-1}\); if \(z_t \to 0\): overwrites with \(n_t\).</li>
+  </ul>
+</div>
+
+<div class="box-trap">
+  <span class="label">2 Must-Know Bug Hunts (`RNN.pdf` Q11 &amp; `LSTM-GRU.pdf` Q9)</span>
+  <p><b>1. BPTT Pseudocode (`RNN.pdf` Q11 — 3 bugs):</b></p>
+<pre style="margin:4px 0 10px;font:13px/1.45 var(--mono);overflow-x:auto">for t = T down to 1:
+    delta_t = (d l_t / d h_t) * tanh'(a_t)  # BUG 1: ignores future gradient + W_h^T @ delta_{t+1}!
+    grad_W_h = delta_t * h_{t-1}^T         # BUG 2: overwrites instead of accumulating (+=)!
+    W_h = W_h - eta * grad_W_h             # BUG 3: updates shared W_h inside loop! (Clip + update AFTER loop)</pre>
+  <p><b>2. Buggy LSTM (`LSTM-GRU.pdf` Q9 — 2 bugs):</b></p>
+  <p><code>c_t = tanh(f_t * c_{t-1} + i_t * g_t)</code> and <code>h_t = o_t * c_t</code>: (1) wrapping <code>c_t</code> in <code>tanh</code> kills the linear cell-state highway (causes vanishing gradients); (2) dropping <code>tanh</code> in <code>h_t = o_t * tanh(c_t)</code> lets <code>h_t</code> grow unbounded.</p>
+</div>
+
+<div class="gen" data-gen="rnn_params"></div>
+
+<h2 id="variants">5. Other RNN Variants (Brief Exam Summary)</h2>
+<ul>
+  <li><b>Bidirectional RNN:</b> Concatenates forward \(h_t^\rightarrow\) and backward \(h_t^\leftarrow\). Great for <b>sentiment analysis / NER</b> (full sentence visible); <b>unsuitable</b> for causal next-token prediction or live streaming speech because it needs future inputs \(x_{t+1..T}\).</li>
+  <li><b>Encoder–Decoder + Attention:</b> Avoids compressing a whole sequence into one fixed vector by computing context \(c_t = \sum_j \alpha_{tj} h_j\) with \(\alpha_t = \text{softmax}(e_t)\) (Bahdanau: \(v_a^T\tanh(W_a s_{t-1} + U_a h_j)\); Luong dot: \(s_t^T h_j\)).</li>
+  <li><b>Self-Attention (Transformer block):</b> \(\text{Attention}(Q,K,V) = \text{softmax}\!\left(\frac{QK^T}{\sqrt{d_k}} + M\right)V\). Divides by \(\sqrt{d_k}\) to stop softmax saturation; causal mask \(M_{ij}=-\infty\) for \(j&gt;i\) prevents peeking ahead; \(O(1)\) path length vs \(O(T)\) in RNNs.</li>
+</ul>
+
+<label class="done"><input type="checkbox" data-done="rnn"> Mark Topic 6 (RNN &amp; Variants) done</label>
+<div class="pager"><a href="cnn.html">&larr; 5 · CNN</a><a href="cheatsheet.html">Cheat Sheet &rarr;</a></div>
+<footer>DSL501:ML-2026-27M · Offline Pen/Paper Lab Exam Prep (Covers Labs 6–11 only)</footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<header class="top">
+  <div class="kicker">Final Review · All 6 Labs on One Page</div>
+  <h1>1-Page Cheat Sheet</h1>
+  <div class="meta">
+    <span class="pill green">Last-15-Min Scan</span>
+    <span class="pill">4 of 6 asked</span>
+    <span class="pill amber">Tap flashcards to test yourself</span>
+  </div>
+  <p class="lede">Every formula, parameter count equation, and bug trap from Labs 6–11 in one quick sweep before the exam.</p>
+</header>
+
+<h2>Master Formula Sheet</h2>
+<div class="grid2">
+  <div class="card">
+    <h4>1 · Decision Tree (Lab 7)</h4>
+    <p>\(\text{Gini} = 1 - \sum p_c^2\) (50/50 = 0.5)</p>
+    <p>\(H = -\sum p_c \log_2 p_c\) (50/50 = 1.0)</p>
+    <p>Split = \(\frac{W_L}{W}I(L) + \frac{W_R}{W}I(R)\)</p>
+    <p>Thresholds = midpoints of sorted unique values</p>
+  </div>
+  <div class="card">
+    <h4>2 · Random Forest (Lab 7)</h4>
+    <p>OOB prob \(= (1 - 1/n)^n \approx e^{-1} \approx 36.8\%\)</p>
+    <p>Forest Var \(= \rho\sigma^2 + \frac{1-\rho}{B}\sigma^2\)</p>
+    <p>Split features: \(m=\sqrt{p}\) (classif.), \(p/3\) (regr.)</p>
+  </div>
+  <div class="card">
+    <h4>3 · KNN (Lab 6)</h4>
+    <p>\(d(x,z) = \sqrt{\sum_j (x_j - z_j)^2}\)</p>
+    <p>Standardize \(z_j = (x_j - \mu_j)/\sigma_j\) inside <code>Pipeline</code></p>
+    <p>Small \(K\): low bias, high var · Large \(K\): high bias, low var</p>
+  </div>
+  <div class="card">
+    <h4>4 · Neural Nets (Labs 8–9)</h4>
+    <p>Sigmoid + BCE / Softmax + CE: \(\delta_L = \hat{y} - y\)</p>
+    <p>Hidden: \(\delta_i = (W_{i+1}^T\delta_{i+1}) \odot g'(a_i)\), \(dW_i = \delta_i h_{i-1}^T\)</p>
+    <p>He init (ReLU): \(\text{Var}(W) = 2/n_{\text{in}}\)</p>
+  </div>
+  <div class="card">
+    <h4>5 · CNN (Lab 10)</h4>
+    <p>\(W_2 = \lfloor(W_1 - F + 2P)/S\rfloor + 1,\; D_2 = K\)</p>
+    <p>Same padding (\(S=1\)): \(P = (F-1)/2\)</p>
+    <p>Siamese loss: \(yD^2 + (1-y)\max(0, m-D)^2\)</p>
+  </div>
+  <div class="card">
+    <h4>6 · RNN &amp; Variants (Lab 11)</h4>
+    <p>LSTM: \(c_t = f_t c_{t-1} + i_t g_t\), \(h_t = o_t \tanh(c_t)\)</p>
+    <p>GRU: \(h_t = (1-z_t)n_t + z_t h_{t-1}\)</p>
+    <p>Clip gradients: <code>clip_grad_norm_(..., 1.0)</code>; T-BPTT: <code>.detach()</code></p>
+  </div>
+</div>
+
+<h2>Master Parameter Count Table</h2>
+<div class="tbl"><table>
+  <tr><th>Layer / Cell</th><th>Formula (with bias)</th><th>Quick Trap to Watch</th></tr>
+  <tr><td><code>nn.Linear(in, out)</code></td><td>\((n_{\text{in}} + 1) \cdot n_{\text{out}}\)</td><td>Don't forget the <code>+1</code> bias per output neuron</td></tr>
+  <tr><td><code>nn.Conv2d(Cin, K, F)</code></td><td>\((F^2 \cdot C_{\text{in}} + 1) \cdot K\)</td><td>Independent of input \(W \times H\)!</td></tr>
+  <tr><td><code>MaxPool2d / AvgPool2d</code></td><td><b>0</b></td><td>Pooling has zero learnable weights</td></tr>
+  <tr><td><b>Vanilla RNN cell</b></td><td>\(h(d + h + 1)\)</td><td>1 bias vector of size \(h\)</td></tr>
+  <tr><td><b>GRU cell</b> (3 gates)</td><td>\(3h(d + h + 1)\) (std) · \(3h(d + h + 2)\) (Lab 11)</td><td>Check 1 bias/gate vs 2 biases/gate</td></tr>
+  <tr><td><b>LSTM cell</b> (4 gates)</td><td>\(4h(d + h + 1)\)</td><td>\(4\times\) a vanilla RNN cell</td></tr>
+</table></div>
+
+<h2>Tap-to-Flip Flashcards (Top Exam Questions)</h2>
+<div class="flashes">
+  <button type="button" class="flash" aria-pressed="false">
+    <span class="fk">Lab 7 · Decision Tree</span>
+    <span class="front">Why do Gini and Entropy give almost identical splits?</span>
+    <span class="back">Near p=0.5, Entropy ≈ 2.885 × Gini. Both vanish at p=0,1 and peak at 0.5, so split rankings agree ~98% of the time.</span>
+  </button>
+  <button type="button" class="flash" aria-pressed="false">
+    <span class="fk">Lab 7 · Random Forest</span>
+    <span class="front">Why subsample m = √p features at each split instead of plain Bagging?</span>
+    <span class="back">Forest variance is ρσ² + ((1−ρ)/B)σ². Plain bagging keeps tree correlation ρ high; random feature subsets decorrelate trees to lower ρ.</span>
+  </button>
+  <button type="button" class="flash" aria-pressed="false">
+    <span class="fk">Lab 6 · KNN</span>
+    <span class="front">Why put StandardScaler inside Pipeline before GridSearchCV?</span>
+    <span class="back">Prevents validation-fold data leakage! Also mandatory for KNN because large-scale features dominate Euclidean distance.</span>
+  </button>
+  <button type="button" class="flash" aria-pressed="false">
+    <span class="fk">Labs 8–9 · Neural Nets</span>
+    <span class="front">Why does DNN/MoonANN output raw logits without nn.Sigmoid()?</span>
+    <span class="back">nn.BCEWithLogitsLoss() fuses sigmoid + BCE for numerical stability and gives clean gradient (ŷ − y) with no σ'(z) vanishing factor.</span>
+  </button>
+  <button type="button" class="flash" aria-pressed="false">
+    <span class="fk">Lab 10 · CNN</span>
+    <span class="front">Why use two 3×3 convs instead of one 5×5, and why 1×1 convs?</span>
+    <span class="back">Two 3×3s cover a 5×5 receptive field with fewer params (18C² vs 25C²) and extra ReLU. 1×1 convs shrink channels (bottleneck) to slash FLOPs.</span>
+  </button>
+  <button type="button" class="flash" aria-pressed="false">
+    <span class="fk">Lab 11 · RNN/LSTM</span>
+    <span class="front">What actually solves vanishing gradients in an LSTM?</span>
+    <span class="back">Additive cell highway c_t = f_t·c_{t−1} + i_t·g_t gives ∂c_t/∂c_{t−1} = f_t (no tanh or matrix multiply), NOT σ'(z)≈1!</span>
+  </button>
+  <button type="button" class="flash" aria-pressed="false">
+    <span class="fk">Lab 11 · Variants</span>
+    <span class="front">When should you NOT use a Bidirectional RNN?</span>
+    <span class="back">Causal next-token language modeling or real-time streaming audio, because backward pass requires future tokens x_{t+1..T}.</span>
+  </button>
+  <button type="button" class="flash" aria-pressed="false">
+    <span class="fk">Lab 10 · ResNet</span>
+    <span class="front">What is the degradation problem &amp; how does y = F(x) + x fix it?</span>
+    <span class="back">Plain deeper nets suffer higher TRAINING error (optimization issue, not overfitting). Residual skip makes identity easy (F→0) and adds +I to ∂y/∂x.</span>
+  </button>
+</div>
+
+<label class="done"><input type="checkbox" data-done="cheatsheet"> Mark Cheat Sheet reviewed</label>

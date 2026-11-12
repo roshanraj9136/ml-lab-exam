@@ -1,0 +1,71 @@
+<header class="top">
+  <div class="kicker">DSL501 · Machine Learning · IIT Bhilai · Offline Lab Exam</div>
+  <h1>ML Lab Exam Prep</h1>
+  <p class="lede">Built strictly from your <b>Classroom Labs 6–11</b>—nothing extra. Each page gives you the plain-English intuition, exact pen-and-paper code to write, worked calculator numbers, and the common bug traps.</p>
+  <div class="strip">
+    <div class="seg s1"><b>4 of 6 topics</b><span>Asked in the exam</span></div>
+    <div class="seg s2"><b>Pen &amp; Paper</b><span>Write code + trace math</span></div>
+    <div class="seg s3"><b>Calculator OK</b><span>Non-programmable allowed</span></div>
+    <div class="seg s4"><b>12% Weightage</b><span>End-Term Lab Exam</span></div>
+  </div>
+</header>
+
+<div class="box-intuition">
+  <span class="label">Zero-Stress Reality Check</span>
+  <p>You don't need to memorize 6 giant notebooks separately. Notice the pattern across your labs:</p>
+  <ul>
+    <li><b>Decision Tree + Random Forest</b> come from the <b>same Lab 7</b> (<code>RandomForestScratch</code> literally calls <code>DecisionTreeScratch</code>).</li>
+    <li><b>Neural Nets, CNN, and RNN</b> all share the exact same 5-line PyTorch training loop: <code>zero_grad() &rarr; logits = model(x) &rarr; loss &rarr; backward() &rarr; step()</code>.</li>
+    <li><b>4 question types appear on paper:</b> (1) Write a scratch function/class, (2) Hand-calculate a tiny example, (3) Count parameters or output shapes, (4) Spot 2–4 bugs in broken code.</li>
+  </ul>
+</div>
+
+<h2>Fast Study Plan (~2.5 Hours Total) <span class="progress" id="plan-progress"></span></h2>
+<ul class="plan" id="plan-list">
+  <li><label><input type="checkbox" id="p0"><span class="t">0:00–0:20</span><span><a href="dt.html">1 · Decision Tree (Lab 7)</a> — Gini/Entropy formulas, <code>best_split</code>, <code>DecisionTreeScratch</code>, 1 split drill.</span></label></li>
+  <li><label><input type="checkbox" id="p1"><span class="t">0:20–0:35</span><span><a href="rf.html">2 · Random Forest (Lab 7)</a> — Bootstrap/OOB (36.8%), variance formula, <code>RandomForestScratch</code>.</span></label></li>
+  <li><label><input type="checkbox" id="p2"><span class="t">0:35–0:55</span><span><a href="knn.html">3 · KNN (Lab 6)</a> — <code>knn_predict_one</code>, scaling in <code>Pipeline</code>, bias–variance of <i>K</i>, 4-point trace.</span></label></li>
+  <li><label><input type="checkbox" id="p3"><span class="t">0:55–1:30</span><span><a href="nn.html">4 · Neural Networks (Labs 8–9)</a> — Manual NumPy backprop, <code>DNN</code> loop, activations, Q42 4-bug drill.</span></label></li>
+  <li><label><input type="checkbox" id="p4"><span class="t">1:30–2:00</span><span><a href="cnn.html">5 · CNN (Lab 10)</a> — Output size/param math, <code>CustomCNN</code> &amp; <code>SiameseNetwork</code>, VGG/GoogLeNet/ResNet.</span></label></li>
+  <li><label><input type="checkbox" id="p5"><span class="t">2:00–2:35</span><span><a href="rnn.html">6 · RNN &amp; Variants (Lab 11)</a> — Manual RNN/LSTM/GRU cells, T-BPTT, param counts, Q11/Q9 bug drills.</span></label></li>
+  <li><label><input type="checkbox" id="p6"><span class="t">2:35–2:50</span><span><a href="cheatsheet.html">Cheat Sheet</a> — Final scan of all formulas, param counts, and flashcards before walking in.</span></label></li>
+</ul>
+
+<h2>The 6 Lab Topics</h2>
+<div class="grid2">
+  <a class="card" href="dt.html">
+    <h4>1 · Decision Tree</h4>
+    <p>Lab 7: Gini, Entropy, midpoints, <code>Node</code>, <code>DecisionTreeScratch</code>, pruning.</p>
+    <span class="st" data-status="dt"></span>
+  </a>
+  <a class="card" href="rf.html">
+    <h4>2 · Random Forest</h4>
+    <p>Lab 7: Bootstrap, OOB 36.8%, feature subsampling, <code>RandomForestScratch</code>.</p>
+    <span class="st" data-status="rf"></span>
+  </a>
+  <a class="card" href="knn.html">
+    <h4>3 · KNN</h4>
+    <p>Lab 6: Euclidean distance, <code>knn_predict_one</code>, scaling &amp; <code>GridSearchCV</code>.</p>
+    <span class="st" data-status="knn"></span>
+  </a>
+  <a class="card" href="nn.html">
+    <h4>4 · Neural Networks</h4>
+    <p>Labs 8–9: Manual backprop, Adam/RMSprop, PyTorch <code>DNN</code>, activations.</p>
+    <span class="st" data-status="nn"></span>
+  </a>
+  <a class="card" href="cnn.html">
+    <h4>5 · CNN</h4>
+    <p>Lab 10: Shape &amp; param math, <code>CustomCNN</code>, Siamese loss, ResNet/GoogLeNet.</p>
+    <span class="st" data-status="cnn"></span>
+  </a>
+  <a class="card" href="rnn.html">
+    <h4>6 · RNN &amp; Variants</h4>
+    <p>Lab 11: Manual RNN/LSTM/GRU cells, BPTT/T-BPTT, Bi-RNN &amp; Attention.</p>
+    <span class="st" data-status="rnn"></span>
+  </a>
+  <a class="card" href="cheatsheet.html">
+    <h4>1-Page Cheat Sheet</h4>
+    <p>All formulas, param counts, top 6 code bugs, and quick flashcards.</p>
+    <span class="st" data-status="cheatsheet"></span>
+  </a>
+</div>
