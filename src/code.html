@@ -1,0 +1,544 @@
+<header class="top">
+  <div class="kicker">Write-From-Memory Practice · All 6 Topics</div>
+  <h1>Code Drills</h1>
+  <div class="meta">
+    <span class="pill green">Short, exam-sized answers</span>
+    <span class="pill">~40 min</span>
+    <span class="pill amber">Try on paper first, then tap to check</span>
+  </div>
+  <p class="lede">These are the kind of "write the code" questions you can expect. Read the question, <b>write your answer on paper</b>, then tap to compare. Every answer is short, uses only NumPy / sklearn / PyTorch, and was run to make sure it works.</p>
+</header>
+
+<div class="box-trick">
+  <span class="label">How to get marks on a code question</span>
+  <ol>
+    <li><b>Start with imports and the function/class header.</b> That alone often earns marks.</li>
+    <li><b>Write shapes as comments</b>, e.g. <code># (B, 32, 16, 16)</code>. Examiners love this, and it stops shape bugs.</li>
+    <li><b>Follow the same order every time:</b> forward → loss → backward → update (or <code>zero_grad → loss → backward → step</code>).</li>
+    <li>A tiny syntax slip is fine. A correct idea and the right steps matter most.</li>
+  </ol>
+</div>
+
+<div class="roadmap"><span class="label">Jump to</span>
+<ol>
+  <li><a href="#dt">1. Decision Tree</a></li>
+  <li><a href="#rf">2. Random Forest</a></li>
+  <li><a href="#knn">3. KNN</a></li>
+  <li><a href="#nn">4. Neural Networks</a></li>
+  <li><a href="#cnn">5. CNN</a></li>
+  <li><a href="#rnn">6. RNN &amp; Variants</a></li>
+</ol></div>
+
+<!-- ============ 1. DECISION TREE ============ -->
+<h2 id="dt">1. Decision Tree</h2>
+
+<details class="check">
+  <summary><span class="k">DT-1</span>Write <code>gini(y)</code> and <code>entropy(y)</code> in NumPy.</summary>
+  <div class="ans">
+<div class="codeblock"><div class="codehead"><span>Answer</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>import numpy as np
+
+def gini(y):
+    _, counts = np.unique(y, return_counts=True)
+    p = counts / len(y)                  # class proportions
+    return 1 - np.sum(p ** 2)
+
+def entropy(y):
+    _, counts = np.unique(y, return_counts=True)
+    p = counts / len(y)
+    return -np.sum(p * np.log2(p))       # every count &gt; 0, so no log(0)</code></pre></div>
+    <p><b>Memory hook:</b> both start with the same 2 lines (counts → proportions p). Only the last line differs.</p>
+  </div>
+</details>
+
+<details class="check">
+  <summary><span class="k">DT-2</span>Write <code>best_split(X, y)</code> that tries midpoint thresholds on every feature and returns the best (feature, threshold) by weighted Gini.</summary>
+  <div class="ans">
+<div class="codeblock"><div class="codehead"><span>Answer</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>def best_split(X, y):
+    n = len(y)
+    best_score, best_f, best_t = np.inf, None, None
+    for f in range(X.shape[1]):                      # every feature
+        values = np.unique(X[:, f])                  # sorted unique values
+        for t in (values[:-1] + values[1:]) / 2:     # midpoints
+            left = X[:, f] &lt;= t
+            right = ~left
+            score = (left.sum() / n) * gini(y[left]) + (right.sum() / n) * gini(y[right])
+            if score &lt; best_score:
+                best_score, best_f, best_t = score, f, t
+    return best_f, best_t</code></pre></div>
+    <p><b>Memory hook:</b> 2 loops (feature, threshold) → mask left/right → weighted Gini → keep the smallest.</p>
+  </div>
+</details>
+
+<details class="check">
+  <summary><span class="k">DT-3</span>Write a <code>Node</code> class, a recursive <code>build_tree</code> with stopping rules, and <code>predict_one</code>.</summary>
+  <div class="ans">
+<div class="codeblock"><div class="codehead"><span>Answer</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>class Node:
+    def __init__(self, feature=None, threshold=None, left=None, right=None, value=None):
+        self.feature, self.threshold = feature, threshold
+        self.left, self.right = left, right
+        self.value = value                     # set only for leaves
+
+def majority(y):
+    vals, counts = np.unique(y, return_counts=True)
+    return vals[np.argmax(counts)]
+
+def build_tree(X, y, depth=0, max_depth=5, min_samples=2):
+    # stopping rules: pure, too few samples, too deep
+    if len(np.unique(y)) == 1 or len(y) &lt; min_samples or depth &gt;= max_depth:
+        return Node(value=majority(y))
+    f, t = best_split(X, y)
+    if f is None:                              # no valid split
+        return Node(value=majority(y))
+    left = X[:, f] &lt;= t
+    return Node(f, t,
+                build_tree(X[left], y[left], depth + 1, max_depth, min_samples),
+                build_tree(X[~left], y[~left], depth + 1, max_depth, min_samples))
+
+def predict_one(node, x):
+    while node.value is None:                  # walk down until a leaf
+        node = node.left if x[node.feature] &lt;= node.threshold else node.right
+    return node.value
+
+def predict(root, X):
+    return np.array([predict_one(root, x) for x in X])</code></pre></div>
+  </div>
+</details>
+
+<!-- ============ 2. RANDOM FOREST ============ -->
+<h2 id="rf">2. Random Forest</h2>
+
+<details class="check">
+  <summary><span class="k">RF-1</span>Write a bootstrap sample function and a column-wise majority vote.</summary>
+  <div class="ans">
+<div class="codeblock"><div class="codehead"><span>Answer</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>def bootstrap_sample(X, y, rng):
+    n = len(y)
+    idx = rng.choice(n, size=n, replace=True)      # WITH replacement
+    return X[idx], y[idx]
+
+def majority_vote(all_preds):
+    # all_preds: (n_trees, n_samples) -&gt; one vote per sample (column)
+    return np.array([majority(col) for col in all_preds.T])</code></pre></div>
+  </div>
+</details>
+
+<details class="check">
+  <summary><span class="k">RF-2</span>Write a <code>RandomForest</code> class with <code>fit</code> and <code>predict</code> using <code>DecisionTreeScratch</code> (from Lab 7).</summary>
+  <div class="ans">
+<div class="codeblock"><div class="codehead"><span>Answer</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>class RandomForest:
+    def __init__(self, n_trees=30, max_depth=5, seed=42):
+        self.n_trees, self.max_depth = n_trees, max_depth
+        self.rng = np.random.default_rng(seed)
+        self.trees = []
+
+    def fit(self, X, y):
+        self.trees = []
+        for _ in range(self.n_trees):
+            Xb, yb = bootstrap_sample(X, y, self.rng)          # 1. random rows
+            tree = DecisionTreeScratch(max_depth=self.max_depth,
+                                       max_features="sqrt",      # 2. random features per split
+                                       random_state=int(self.rng.integers(1_000_000)))
+            tree.fit(Xb, yb)
+            self.trees.append(tree)
+        return self
+
+    def predict(self, X):
+        all_preds = np.array([t.predict(X) for t in self.trees])  # (n_trees, n_samples)
+        return majority_vote(all_preds)                           # 3. vote</code></pre></div>
+    <p><b>Memory hook:</b> loop over trees: bootstrap → tree with <code>max_features="sqrt"</code> → fit. Predict = stack → vote.</p>
+  </div>
+</details>
+
+<details class="check">
+  <summary><span class="k">RF-3</span>Inside a tree, how do you pick a random subset of √p features at each split?</summary>
+  <div class="ans">
+<div class="codeblock"><div class="codehead"><span>Answer</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>p = X.shape[1]
+k = max(1, int(np.sqrt(p)))
+features = rng.choice(p, size=k, replace=False)   # WITHOUT replacement
+# then loop only over these features in best_split:
+# for f in features: ...</code></pre></div>
+    <p>Rows: <b>with</b> replacement (bootstrap). Features: <b>without</b> replacement.</p>
+  </div>
+</details>
+
+<!-- ============ 3. KNN ============ -->
+<h2 id="knn">3. KNN</h2>
+
+<details class="check">
+  <summary><span class="k">KNN-1</span>Write <code>knn_predict(X_train, y_train, X_test, k)</code> from scratch (Euclidean distance, majority vote).</summary>
+  <div class="ans">
+<div class="codeblock"><div class="codehead"><span>Answer</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>import numpy as np
+
+def knn_predict(X_train, y_train, X_test, k=3):
+    preds = []
+    for x in X_test:
+        d = np.sqrt(np.sum((X_train - x) ** 2, axis=1))   # distance to every train point
+        nearest = np.argsort(d)[:k]                        # indices of k closest
+        vals, counts = np.unique(y_train[nearest], return_counts=True)
+        preds.append(vals[np.argmax(counts)])              # majority vote
+    return np.array(preds)</code></pre></div>
+    <p><b>Memory hook:</b> distance → argsort → first k → vote. 4 lines inside the loop.</p>
+  </div>
+</details>
+
+<details class="check">
+  <summary><span class="k">KNN-2</span>Standardise features by hand (no leakage), then write the sklearn Pipeline + GridSearchCV version.</summary>
+  <div class="ans">
+<div class="codeblock"><div class="codehead"><span>Answer</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code># By hand: statistics from TRAIN only
+mu, sd = X_train.mean(axis=0), X_train.std(axis=0)
+X_train_s = (X_train - mu) / sd
+X_test_s = (X_test - mu) / sd              # reuse train mu, sd
+
+# sklearn version
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.model_selection import GridSearchCV, StratifiedKFold
+
+pipe = Pipeline([("scaler", StandardScaler()), ("knn", KNeighborsClassifier())])
+grid = {"knn__n_neighbors": list(range(1, 32, 2)),
+        "knn__weights": ["uniform", "distance"]}
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+search = GridSearchCV(pipe, grid, cv=cv, scoring="accuracy")
+search.fit(X_train, y_train)
+print(search.best_params_, search.best_score_)
+print("test acc:", search.score(X_test, y_test))</code></pre></div>
+    <p>Parameter names are <code>stepname__param</code> (two underscores).</p>
+  </div>
+</details>
+
+<details class="check">
+  <summary><span class="k">KNN-3</span>Find the best K using 5-fold cross-validation in a simple loop.</summary>
+  <div class="ans">
+<div class="codeblock"><div class="codehead"><span>Answer</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>from sklearn.model_selection import cross_val_score
+
+scores = {}
+for k in range(1, 32, 2):                  # odd K avoids ties
+    model = Pipeline([("scaler", StandardScaler()),
+                      ("knn", KNeighborsClassifier(n_neighbors=k))])
+    scores[k] = cross_val_score(model, X_train, y_train, cv=5).mean()
+best_k = max(scores, key=scores.get)
+print("Best K:", best_k, "CV acc:", scores[best_k])</code></pre></div>
+  </div>
+</details>
+
+<!-- ============ 4. NEURAL NETWORKS ============ -->
+<h2 id="nn">4. Neural Networks</h2>
+
+<details class="check">
+  <summary><span class="k">NN-1</span>NumPy: train a 1-hidden-layer network (ReLU hidden, sigmoid output, BCE loss) with full-batch gradient descent. Write forward, backward and update.</summary>
+  <div class="ans">
+<div class="codeblock"><div class="codehead"><span>Answer</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>import numpy as np
+
+def sigmoid(z):
+    return 1 / (1 + np.exp(-z))
+
+n, d = X.shape                    # X: (n, d), y: (n,) with 0/1
+h, lr = 16, 0.1
+rng = np.random.default_rng(0)
+W1 = rng.normal(0, np.sqrt(2 / d), (d, h)); b1 = np.zeros(h)   # He init (ReLU)
+W2 = rng.normal(0, np.sqrt(1 / h), (h, 1)); b2 = np.zeros(1)
+
+for epoch in range(1000):
+    # ---- forward ----
+    Z1 = X @ W1 + b1              # (n, h)
+    A1 = np.maximum(0, Z1)        # ReLU
+    Z2 = A1 @ W2 + b2             # (n, 1)
+    A2 = sigmoid(Z2).ravel()      # (n,)  predicted probability
+    loss = -np.mean(y * np.log(A2 + 1e-12) + (1 - y) * np.log(1 - A2 + 1e-12))
+
+    # ---- backward ----
+    dZ2 = (A2 - y).reshape(-1, 1) / n     # sigmoid + BCE shortcut: a - y
+    dW2 = A1.T @ dZ2;  db2 = dZ2.sum(axis=0)
+    dA1 = dZ2 @ W2.T                      # (n, h)
+    dZ1 = dA1 * (Z1 &gt; 0)                  # ReLU derivative
+    dW1 = X.T @ dZ1;   db1 = dZ1.sum(axis=0)
+
+    # ---- update ----
+    W1 -= lr * dW1;  b1 -= lr * db1
+    W2 -= lr * dW2;  b2 -= lr * db2
+
+pred = (A2 &gt;= 0.5).astype(int)</code></pre></div>
+    <p><b>Memory hook:</b> backward goes in reverse: output error <code>a − y</code> → <code>dW = input.T @ dZ</code> → push back with <code>@ W.T</code> → multiply by activation derivative.</p>
+  </div>
+</details>
+
+<details class="check">
+  <summary><span class="k">NN-2</span>PyTorch: write an MLP class for binary classification and its training + test-accuracy loop.</summary>
+  <div class="ans">
+<div class="codeblock"><div class="codehead"><span>Answer</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>import torch
+import torch.nn as nn
+from torch.utils.data import TensorDataset, DataLoader
+
+class MLP(nn.Module):
+    def __init__(self, n_inputs, hidden=64):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(n_inputs, hidden), nn.ReLU(),
+            nn.Linear(hidden, hidden), nn.ReLU(),
+            nn.Linear(hidden, 1),              # raw logit (no sigmoid)
+        )
+
+    def forward(self, x):
+        return self.net(x).squeeze(1)          # (B,)
+
+X_t = torch.tensor(X_train, dtype=torch.float32)
+y_t = torch.tensor(y_train, dtype=torch.float32)
+loader = DataLoader(TensorDataset(X_t, y_t), batch_size=32, shuffle=True)
+
+model = MLP(X_t.shape[1])
+loss_fn = nn.BCEWithLogitsLoss()               # sigmoid + BCE together
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+for epoch in range(50):
+    model.train()
+    for xb, yb in loader:
+        optimizer.zero_grad()
+        loss = loss_fn(model(xb), yb)
+        loss.backward()
+        optimizer.step()
+
+model.eval()
+with torch.no_grad():
+    X_te = torch.tensor(X_test, dtype=torch.float32)
+    preds = (torch.sigmoid(model(X_te)) &gt;= 0.5).long()
+    acc = (preds == torch.tensor(y_test)).float().mean().item()</code></pre></div>
+    <p><b>Multi-class instead?</b> Last layer <code>nn.Linear(hidden, num_classes)</code>, no squeeze, <code>nn.CrossEntropyLoss()</code> with integer labels, predict with <code>.argmax(dim=1)</code>.</p>
+  </div>
+</details>
+
+<details class="check">
+  <summary><span class="k">NN-3</span>Write one update step for SGD with Momentum, RMSprop and Adam (one weight array <code>w</code>, gradient <code>g</code>).</summary>
+  <div class="ans">
+<div class="codeblock"><div class="codehead"><span>Answer</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code># SGD with momentum
+v = beta * v + g
+w = w - lr * v
+
+# RMSprop
+s = rho * s + (1 - rho) * g ** 2
+w = w - lr * g / (np.sqrt(s) + eps)
+
+# Adam (t starts at 1)
+m = b1 * m + (1 - b1) * g
+s = b2 * s + (1 - b2) * g ** 2
+m_hat = m / (1 - b1 ** t)          # bias correction
+s_hat = s / (1 - b2 ** t)
+w = w - lr * m_hat / (np.sqrt(s_hat) + eps)</code></pre></div>
+    <p>Adam = Momentum (m) + RMSprop (s) + bias correction. Defaults: <code>b1=0.9, b2=0.999, eps=1e-8</code>.</p>
+  </div>
+</details>
+
+<!-- ============ 5. CNN ============ -->
+<h2 id="cnn">5. CNN</h2>
+
+<details class="check">
+  <summary><span class="k">CNN-1</span>Write a PyTorch CNN for 32×32 RGB images and 10 classes: two conv blocks (Conv-ReLU-MaxPool) then a classifier. Comment the shapes.</summary>
+  <div class="ans">
+<div class="codeblock"><div class="codehead"><span>Answer</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>import torch
+import torch.nn as nn
+
+class SimpleCNN(nn.Module):
+    def __init__(self, num_classes=10):
+        super().__init__()
+        self.features = nn.Sequential(                      # input (B, 3, 32, 32)
+            nn.Conv2d(3, 32, kernel_size=3, padding=1),     # (B, 32, 32, 32)
+            nn.ReLU(),
+            nn.MaxPool2d(2),                                # (B, 32, 16, 16)
+            nn.Conv2d(32, 64, kernel_size=3, padding=1),    # (B, 64, 16, 16)
+            nn.ReLU(),
+            nn.MaxPool2d(2),                                # (B, 64, 8, 8)
+        )
+        self.classifier = nn.Sequential(
+            nn.Flatten(),                                   # (B, 64*8*8 = 4096)
+            nn.Linear(64 * 8 * 8, 128), nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(128, num_classes),                    # raw scores (logits)
+        )
+
+    def forward(self, x):
+        return self.classifier(self.features(x))</code></pre></div>
+    <p><b>Memory hook:</b> <code>kernel 3 + padding 1</code> keeps the size; each <code>MaxPool2d(2)</code> halves it. Linear input = channels × H × W after the last pool.</p>
+  </div>
+</details>
+
+<details class="check">
+  <summary><span class="k">CNN-2</span>Write <code>train_one_epoch</code> and <code>evaluate</code> (accuracy) for a multi-class CNN.</summary>
+  <div class="ans">
+<div class="codeblock"><div class="codehead"><span>Answer</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>def train_one_epoch(model, loader, loss_fn, optimizer):
+    model.train()
+    total_loss = 0.0
+    for xb, yb in loader:
+        optimizer.zero_grad()
+        loss = loss_fn(model(xb), yb)      # loss_fn = nn.CrossEntropyLoss()
+        loss.backward()
+        optimizer.step()
+        total_loss += loss.item() * xb.size(0)
+    return total_loss / len(loader.dataset)
+
+def evaluate(model, loader):
+    model.eval()                            # turns off Dropout
+    correct, total = 0, 0
+    with torch.no_grad():                   # no gradients needed
+        for xb, yb in loader:
+            preds = model(xb).argmax(dim=1)
+            correct += (preds == yb).sum().item()
+            total += yb.size(0)
+    return correct / total
+
+model = SimpleCNN()
+loss_fn = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+for epoch in range(10):
+    train_loss = train_one_epoch(model, train_loader, loss_fn, optimizer)
+    print(epoch, train_loss, evaluate(model, test_loader))</code></pre></div>
+  </div>
+</details>
+
+<details class="check">
+  <summary><span class="k">CNN-3</span>Count a model's trainable parameters in code, and check a layer's output shape with a dummy input.</summary>
+  <div class="ans">
+<div class="codeblock"><div class="codehead"><span>Answer</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+print(n_params)                             # SimpleCNN above: 545,098
+
+x = torch.randn(1, 3, 32, 32)               # fake batch of 1 image
+print(model.features(x).shape)              # torch.Size([1, 64, 8, 8])</code></pre></div>
+    <p>By hand: conv1 \((3\cdot9+1)\cdot32 = 896\), conv2 \((32\cdot9+1)\cdot64 = 18{,}496\), fc1 \((4096+1)\cdot128 = 524{,}416\), fc2 \((128+1)\cdot10 = 1{,}290\). Total <b>545,098</b>.</p>
+  </div>
+</details>
+
+<!-- ============ 6. RNN ============ -->
+<h2 id="rnn">6. RNN &amp; Variants</h2>
+
+<details class="check">
+  <summary><span class="k">RNN-1</span>Write a vanilla RNN by hand (<code>nn.Linear</code> only) that reads input <code>(B, T, D)</code> and returns all hidden states and the last one.</summary>
+  <div class="ans">
+<div class="codeblock"><div class="codehead"><span>Answer</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>import torch
+import torch.nn as nn
+
+class SimpleRNN(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super().__init__()
+        self.hidden_size = hidden_size
+        self.W_x = nn.Linear(input_size, hidden_size)               # includes bias b
+        self.W_h = nn.Linear(hidden_size, hidden_size, bias=False)
+
+    def forward(self, x):                        # x: (B, T, D)
+        B, T, _ = x.shape
+        h = torch.zeros(B, self.hidden_size)     # h_0 = 0
+        outputs = []
+        for t in range(T):                       # same weights at every step
+            h = torch.tanh(self.W_x(x[:, t, :]) + self.W_h(h))
+            outputs.append(h)
+        return torch.stack(outputs, dim=1), h    # (B, T, H), (B, H)</code></pre></div>
+  </div>
+</details>
+
+<details class="check">
+  <summary><span class="k">RNN-2</span>Write an LSTM cell and a GRU cell by hand (the Lab 11 way).</summary>
+  <div class="ans">
+<div class="codeblock"><div class="codehead"><span>Answer</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>class LSTMCell(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super().__init__()
+        n = input_size + hidden_size
+        self.f = nn.Linear(n, hidden_size)      # forget gate
+        self.i = nn.Linear(n, hidden_size)      # input gate
+        self.g = nn.Linear(n, hidden_size)      # candidate
+        self.o = nn.Linear(n, hidden_size)      # output gate
+
+    def forward(self, x_t, state):
+        h, c = state
+        xh = torch.cat([x_t, h], dim=-1)
+        f = torch.sigmoid(self.f(xh))
+        i = torch.sigmoid(self.i(xh))
+        g = torch.tanh(self.g(xh))
+        o = torch.sigmoid(self.o(xh))
+        c = f * c + i * g                       # additive cell update
+        h = o * torch.tanh(c)
+        return h, c
+
+class GRUCell(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super().__init__()
+        self.W_ir = nn.Linear(input_size, hidden_size); self.W_hr = nn.Linear(hidden_size, hidden_size)
+        self.W_iz = nn.Linear(input_size, hidden_size); self.W_hz = nn.Linear(hidden_size, hidden_size)
+        self.W_in = nn.Linear(input_size, hidden_size); self.W_hn = nn.Linear(hidden_size, hidden_size)
+
+    def forward(self, x_t, h):
+        r = torch.sigmoid(self.W_ir(x_t) + self.W_hr(h))      # reset gate
+        z = torch.sigmoid(self.W_iz(x_t) + self.W_hz(h))      # update gate
+        n = torch.tanh(self.W_in(x_t) + r * self.W_hn(h))     # candidate
+        return (1 - z) * n + z * h</code></pre></div>
+    <p><b>Memory hook:</b> gates use <code>sigmoid</code> (0 to 1 valves), candidates use <code>tanh</code>. LSTM returns <code>(h, c)</code>; GRU returns only <code>h</code>.</p>
+  </div>
+</details>
+
+<details class="check">
+  <summary><span class="k">RNN-3</span>Write a next-token model (Embedding → RNN → Linear) and one training step with gradient clipping.</summary>
+  <div class="ans">
+<div class="codeblock"><div class="codehead"><span>Answer</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>class NextTokenModel(nn.Module):
+    def __init__(self, vocab_size, emb_dim, hidden_size):
+        super().__init__()
+        self.embedding = nn.Embedding(vocab_size, emb_dim)
+        self.rnn = SimpleRNN(emb_dim, hidden_size)
+        self.out = nn.Linear(hidden_size, vocab_size)
+
+    def forward(self, tokens):                   # tokens: (B, T) integer ids
+        outputs, _ = self.rnn(self.embedding(tokens))   # (B, T, H)
+        return self.out(outputs)                 # (B, T, V) logits
+
+model = NextTokenModel(vocab_size=V, emb_dim=32, hidden_size=64)
+criterion = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=3e-3)
+
+for x, y in train_loader:                        # y = x shifted left by 1
+    optimizer.zero_grad()
+    logits = model(x)
+    loss = criterion(logits.reshape(-1, V), y.reshape(-1))   # flatten B*T
+    loss.backward()
+    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)  # stop exploding
+    optimizer.step()</code></pre></div>
+    <p><b>T-BPTT:</b> when carrying the hidden state into the next chunk, use <code>h = h.detach()</code> so gradients don't flow back forever.</p>
+  </div>
+</details>
+
+<details class="check">
+  <summary><span class="k">RNN-4</span>If built-in layers are allowed: sequence classifier with <code>nn.LSTM</code> (e.g. sentiment) using the last hidden state.</summary>
+  <div class="ans">
+<div class="codeblock"><div class="codehead"><span>Answer</span><button type="button" class="copy-btn">Copy</button></div>
+<pre><code>class LSTMClassifier(nn.Module):
+    def __init__(self, vocab_size, emb_dim, hidden_size, num_classes, bidirectional=False):
+        super().__init__()
+        self.embedding = nn.Embedding(vocab_size, emb_dim)
+        self.lstm = nn.LSTM(emb_dim, hidden_size, batch_first=True, bidirectional=bidirectional)
+        out_dim = hidden_size * (2 if bidirectional else 1)
+        self.fc = nn.Linear(out_dim, num_classes)
+
+    def forward(self, tokens):                       # (B, T)
+        out, (h_n, c_n) = self.lstm(self.embedding(tokens))
+        if self.lstm.bidirectional:
+            last = torch.cat([h_n[-2], h_n[-1]], dim=1)   # forward + backward
+        else:
+            last = h_n[-1]                               # (B, H)
+        return self.fc(last)                         # (B, num_classes)</code></pre></div>
+    <p><code>batch_first=True</code> means input is <code>(B, T, D)</code>. Swap <code>nn.LSTM</code> → <code>nn.GRU</code> / <code>nn.RNN</code>: those return <code>out, h_n</code> (no <code>c_n</code>).</p>
+  </div>
+</details>
+
+<label class="done"><input type="checkbox" data-done="code"> Mark Code Drills done</label>

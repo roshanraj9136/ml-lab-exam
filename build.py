@@ -10,6 +10,7 @@ PAGES = [
     ("nn", "4 · Neural Networks · DSL501 Lab Exam", "4 · Neural Nets"),
     ("cnn", "5 · CNN · DSL501 Lab Exam", "5 · CNN"),
     ("rnn", "6 · RNN & Variants · DSL501 Lab Exam", "6 · RNN & Variants"),
+    ("code", "Code Drills · DSL501 Lab Exam", "Code Drills"),
     ("cheatsheet", "Cheat Sheet · DSL501 Lab Exam", "Cheat Sheet"),
 ]
 
