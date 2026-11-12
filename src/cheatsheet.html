@@ -66,7 +66,7 @@
   <button type="button" class="flash" aria-pressed="false">
     <span class="fk">Lab 7 · Decision Tree</span>
     <span class="front">Why do Gini and Entropy give almost identical splits?</span>
-    <span class="back">Near p=0.5, Entropy ≈ 2.885 × Gini. Both vanish at p=0,1 and peak at 0.5, so split rankings agree ~98% of the time.</span>
+    <span class="back">Same shape: both are 0 for a pure node and maximum at 50/50 (Gini 0.5, Entropy 1.0), so Entropy ≈ 2 × Gini and they usually rank splits the same. Gini is faster (no log).</span>
   </button>
   <button type="button" class="flash" aria-pressed="false">
     <span class="fk">Lab 7 · Random Forest</span>
@@ -99,9 +99,9 @@
     <span class="back">Causal next-token language modeling or real-time streaming audio, because backward pass requires future tokens x_{t+1..T}.</span>
   </button>
   <button type="button" class="flash" aria-pressed="false">
-    <span class="fk">Lab 10 · ResNet</span>
-    <span class="front">What is the degradation problem &amp; how does y = F(x) + x fix it?</span>
-    <span class="back">Plain deeper nets suffer higher TRAINING error (optimization issue, not overfitting). Residual skip makes identity easy (F→0) and adds +I to ∂y/∂x.</span>
+    <span class="fk">Lab 10 · CNN</span>
+    <span class="front">Why does CustomCNN's first Linear layer take 128*4*4 inputs?</span>
+    <span class="back">32×32 input, padding=1 keeps size, three MaxPool2d(2) halve it: 32→16→8→4. Last conv has 128 channels → 128×4×4 = 2048 features after Flatten.</span>
   </button>
 </div>
 

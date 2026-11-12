@@ -9,6 +9,15 @@
   <p class="lede">A decision tree splits data step-by-step using threshold questions like <code>petal_width &lt;= 1.75</code> so that each child group becomes as pure (single-class) as possible.</p>
 </header>
 
+<div class="box-trick">
+  <span class="label">Remember just these 3 things</span>
+  <ol>
+    <li><b>Gini</b> = 1 − Σp² and <b>Entropy</b> = −Σp·log₂p. Pure = 0, 50/50 = 0.5 / 1.0.</li>
+    <li><b>Thresholds</b> = midpoints of sorted unique values. Pick the split with the <b>lowest weighted impurity</b>.</li>
+    <li><b>Stop</b> when the node is pure, too small, too deep, or no valid split exists → leaf = majority class.</li>
+  </ol>
+</div>
+
 <div class="roadmap"><span class="label">On this page</span>
 <ol>
   <li><a href="#intuition">1. Plain Intuition</a></li>
@@ -35,13 +44,12 @@
   <ul>
     <li><b>Pure node</b> (all same class): \(\text{Gini} = 0,\; H = 0\).</li>
     <li><b>50/50 binary split:</b> \(\text{Gini} = 0.5,\; H = 1.0\).</li>
-    <li><b>Misclassification Error</b> \(1 - \max_c p_c\) is NOT used to grow trees because it is insensitive to purity gains in children (e.g., an 8/2 node gives \(E=0.2\), \(G=0.32\), \(H=0.722\)).</li>
   </ul>
 </div>
 
 <div class="box-trick">
   <span class="label">Why Gini and Entropy Usually Pick the Same Split (Lab 7 Task 1.6)</span>
-  <p>Near \(p = 0.5\), Taylor expansion shows \(H(p) \approx \frac{2}{\ln 2}\,\text{Gini}(p) \approx 2.885\,\text{Gini}(p)\). Both are concave and zero at \(p \in \{0, 1\}\), so their split rankings match ~98% of the time—Gini is simply faster because it skips \(\log_2\).</p>
+  <p>Both curves have the same shape: 0 for a pure node, maximum at 50/50 (Gini = 0.5, Entropy = 1.0), so Entropy is roughly \(2\times\) Gini. Because they rise and fall together, they usually pick the <b>same best split</b>. Gini is slightly faster because it needs no \(\log_2\). (In Lab 7, DT and RF gave the same <b>0.80</b> test accuracy with either criterion.)</p>
 </div>
 
 <h2 id="code">3. Pen-and-Paper Code (Lab 7)</h2>
@@ -201,17 +209,15 @@ class DecisionTreeScratch:
   </div>
 </details>
 <details class="check">
-  <summary><span class="k">Check 2</span>Why does <code>entropy()</code> check <code>if p &gt; 0</code> and why does <code>DecisionTreeScratch</code> accept <code>sample_weight</code>?</summary>
+  <summary><span class="k">Check 2</span>Why does <code>entropy()</code> check <code>if p &gt; 0</code>?</summary>
   <div class="ans">
-    <p><b><code>if p &gt; 0</code>:</b> avoids <code>0 * log2(0) = nan</code> (by convention \(0\log_2 0 = 0\)).</p>
-    <p><b><code>sample_weight</code>:</b> lets the same tree class serve as weighted decision stumps inside <code>AdaBoostScratch</code> (Lab 7 Part C).</p>
+    <p>To avoid <code>0 * log2(0) = nan</code>. By convention \(0\log_2 0 = 0\), so empty classes are simply skipped.</p>
   </div>
 </details>
 <details class="check">
-  <summary><span class="k">Check 3</span>What is Cost-Complexity Pruning and how do Regression Trees split?</summary>
+  <summary><span class="k">Check 3</span>Why does a fully grown tree overfit, and which parameters stop it?</summary>
   <div class="ans">
-    <p><b>Regression tree:</b> predicts region mean \(\hat{c}_m\) and picks splits minimizing \(\text{RSS}(L) + \text{RSS}(R)\).</p>
-    <p><b>Pruning:</b> minimizes \(C_\alpha(T) = \text{RSS}(T) + \alpha |T|\) where \(|T|\) is number of leaves and \(\alpha\) is tuned via CV (<code>ccp_alpha</code>).</p>
+    <p>Grown until every leaf is pure, the tree memorises noise (high variance). In Lab 7 we limit it with <code>max_depth</code> and <code>min_samples_split</code>.</p>
   </div>
 </details>
 

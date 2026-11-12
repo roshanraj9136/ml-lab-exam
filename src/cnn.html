@@ -9,11 +9,20 @@
   <p class="lede">Instead of connecting every pixel to every neuron, a CNN slides small \(F\times F\) filters across an image. That gives <b>local connectivity</b> and <b>weight sharing</b>—slashing parameters by orders of magnitude.</p>
 </header>
 
+<div class="box-trick">
+  <span class="label">Remember just these 3 things</span>
+  <ol>
+    <li><b>Output size:</b> \(\lfloor (W - F + 2P)/S \rfloor + 1\). With <code>kernel 3, padding 1, stride 1</code> the size stays the same; <code>MaxPool2d(2)</code> halves it.</li>
+    <li><b>Conv params:</b> \((F \cdot F \cdot C_{\text{in}} + 1)\cdot K\). Pooling has 0 params.</li>
+    <li><b>Model pattern:</b> <code>[Conv → ReLU → Pool] × n → Flatten → Linear</code>. Linear input = channels × H × W after the last pool (e.g. <code>128*4*4</code>).</li>
+  </ol>
+</div>
+
 <div class="roadmap"><span class="label">On this page</span>
 <ol>
   <li><a href="#math">1. Spatial Size &amp; Parameter Formulas</a></li>
   <li><a href="#code">2. PyTorch Models to Write (Lab 10)</a></li>
-  <li><a href="#archs">3. Architectures &amp; ReLU Vis Rules</a></li>
+  <li><a href="#archs">3. Key Ideas (LeNet, Siamese, 3×3, 1×1)</a></li>
   <li><a href="#trace">4. Hand Convolution + Practice</a></li>
 </ol></div>
 
@@ -26,8 +35,8 @@
     <li><b>Same spatial size (\(S=1\)):</b> \(P = \frac{F - 1}{2}\) (so \(F=3 \implies P=1\); \(F=5 \implies P=2\)).</li>
     <li><b>Conv2d parameters (with bias):</b> \(\text{Params} = (F \cdot F \cdot C_{\text{in}} + 1) \cdot K\).</li>
     <li><b>Conv2d multiplications (FLOPs):</b> \(W_2 \cdot H_2 \cdot K \cdot (F \cdot F \cdot C_{\text{in}})\).</li>
-    <li><b>Pooling (`MaxPool2d`, `AvgPool2d`):</b> <b>0 learnable parameters!</b> Depth \(D_2 = C_{\text{in}}\).</li>
-    <li><b>Siamese Contrastive Loss (Lab 10):</b> \(L = y D^2 + (1-y)\max(0, m - D)^2\), where \(D = \|z_a - z_b\|_2\), \(y\in\{0,1\}\) (`1` = same class).</li>
+    <li><b>Pooling (<code>MaxPool2d</code>, <code>AvgPool2d</code>):</b> <b>0 learnable parameters!</b> Depth \(D_2 = C_{\text{in}}\).</li>
+    <li><b>Siamese Contrastive Loss (Lab 10):</b> \(L = y D^2 + (1-y)\max(0, m - D)^2\), where \(D = \|z_a - z_b\|_2\), \(y\in\{0,1\}\) (<code>1</code> = same class).</li>
   </ul>
 </div>
 
@@ -120,22 +129,14 @@ def contrastive_loss(za, zb, same, margin=1.0):
     return (same * d.square() + (1 - same) * F.relu(margin - d).square()).mean()</code></pre>
 </div>
 
-<h2 id="archs">3. Architectures &amp; Key Exam Concepts (Lab 10 + CNN.pdf)</h2>
-<div class="tbl"><table>
-  <tr><th>Model</th><th>Key Signature Idea</th><th>Why Examiners Ask It</th></tr>
-  <tr><td><b>LeNet-5</b></td><td><code>5×5</code> convs, <code>AvgPool(2)</code>, <code>tanh</code></td><td>Classic digit recognizer; `conv3(5×5)` maps `16×5×5 &rarr; 120×1×1`</td></tr>
-  <tr><td><b>AlexNet</b></td><td><code>11×11 s=4</code>, ReLU, Dropout, 2 GPUs</td><td>Most params sit in giant FC layers (`9216 &rarr; 4096 &rarr; 4096`)</td></tr>
-  <tr><td><b>VGG-16</b></td><td>Only stacked <code>3×3</code> convs + <code>2×2</code> MaxPool</td><td>Two `3×3` convs = `5×5` receptive field with fewer params (\(18C^2 &lt; 25C^2\)) + 2 ReLUs</td></tr>
-  <tr><td><b>GoogLeNet</b></td><td>Parallel Inception branches + <b>1×1 bottleneck</b> + GAP</td><td>`1×1` conv slashes channel depth before `3×3`/`5×5`; GAP drops FC params (12× smaller than AlexNet); aux losses (`+0.3`)</td></tr>
-  <tr><td><b>ResNet</b></td><td>Skip connection \(y = F(x) + x\)</td><td>Fixes <b>degradation</b> (56-layer plain net has <i>higher train error</i> than 20-layer); \(\frac{\partial y}{\partial x} = \frac{\partial F}{\partial x} + I\) keeps gradients alive</td></tr>
-</table></div>
-
-<div class="tbl"><table>
-  <tr><th>ReLU Backward Rule (\(h_{i+1}=\max(0,h_i)\), grad \(g_{i+1}\))</th><th>Blocks \(h_i &lt; 0\)?</th><th>Blocks \(g_{i+1} &lt; 0\)?</th></tr>
-  <tr><td><b>Vanilla Backprop</b></td><td>Yes</td><td>No</td></tr>
-  <tr><td><b>Deconvnet</b></td><td>No</td><td>Yes</td></tr>
-  <tr><td><b>Guided Backpropagation</b> (sharpest visualizations)</td><td>Yes</td><td>Yes</td></tr>
-</table></div>
+<h2 id="archs">3. Key Ideas Worth One Line Each</h2>
+<ul>
+  <li><b>LeNet-5 (Lab 10):</b> <code>5×5</code> convs + <code>AvgPool(2)</code> + <code>tanh</code>. Shapes: 32→28→14→10→5→1, and <code>conv3</code> maps <code>16×5×5 → 120×1×1</code>.</li>
+  <li><b>Siamese (Lab 10):</b> the <b>same</b> encoder (shared weights) embeds both images; similar pairs pulled together, different pairs pushed at least margin \(m\) apart.</li>
+  <li><b>Two 3×3 convs vs one 5×5:</b> same 5×5 view of the image, fewer weights (\(18C^2\) vs \(25C^2\)) and one extra ReLU.</li>
+  <li><b>1×1 conv:</b> mixes/shrinks channels cheaply (see the box below).</li>
+  <li><b>Why <code>Dropout(0.4)</code> in CustomCNN:</b> randomly zeroes neurons during training to reduce overfitting; turned off by <code>model.eval()</code>.</li>
+</ul>
 
 <h2 id="trace">4. Hand Convolution + Param Check + Practice</h2>
 <div class="box-trace">
@@ -150,8 +151,8 @@ def contrastive_loss(za, zb, same, margin=1.0):
 </div>
 
 <div class="box-trick">
-  <span class="label">Why 1×1 Bottlenecks Work (GoogLeNet Q18)</span>
-  <p>On a `28×28×192` input, direct `5×5×32` takes `(25×192+1)×32 = 153,632` params and `120.4M` mults. Putting `1×1×16` first drops params to `15,920` and mults to `12.4M` (<b>9.68× fewer FLOPs!</b>).</p>
+  <span class="label">Why 1×1 Convs Save Work (worked numbers)</span>
+  <p>On a <code>28×28×192</code> input, a direct <code>5×5</code> conv with 32 filters has <code>(25×192+1)×32 = 153,632</code> params and ~<code>120.4M</code> multiplications. Putting a <code>1×1</code> conv with 16 filters first drops this to <code>15,920</code> params and ~<code>12.4M</code> multiplications (<b>~9.7× less work</b>).</p>
 </div>
 
 <div class="gen" data-gen="cnn_shape"></div>

@@ -20,7 +20,7 @@ window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]},svg
 <nav class="topnav" aria-label="Pages"><a href="./" class="home">Home</a><a href="dt.html">1 · Decision Tree</a><a href="rf.html">2 · Random Forest</a><a href="knn.html">3 · KNN</a><a href="nn.html">4 · Neural Nets</a><a href="cnn.html">5 · CNN</a><a href="rnn.html" aria-current="page">6 · RNN & Variants</a><a href="cheatsheet.html">Cheat Sheet</a><button type="button" class="theme-btn" id="theme-toggle" aria-label="Toggle color theme">Theme</button></nav>
 <div class="wrap">
 <header class="top">
-  <div class="kicker">Topic 6 · Lab 11 + RNN / LSTM-GRU / Attention Question Banks</div>
+  <div class="kicker">Topic 6 · Lab 11 (Manual RNN, LSTM, GRU)</div>
   <h1>RNN and Variants</h1>
   <div class="meta">
     <span class="pill green">Manual PyTorch Gates (No nn.LSTM)</span>
@@ -30,13 +30,22 @@ window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]},svg
   <p class="lede">In Lab 11, you built <b>RNN, LSTM, and GRU cells manually</b> using <code>nn.Linear</code> gates and unrolled loops—not PyTorch's built-in <code>nn.RNN/LSTM/GRU</code>. Know the 3 cells, parameter counts, vanishing-gradient fix, and T-BPTT.</p>
 </header>
 
+<div class="box-trick">
+  <span class="label">Remember just these 3 things</span>
+  <ol>
+    <li><b>RNN:</b> \(h_t = \tanh(W_x x_t + W_h h_{t-1} + b)\), same weights reused at every time step (loop over <code>t</code>).</li>
+    <li><b>LSTM:</b> 4 gates (forget, input, candidate, output). \(c_t = f\cdot c_{t-1} + i\cdot g\), \(h_t = o\cdot\tanh(c_t)\). The additive \(c_t\) path stops gradients vanishing. <b>GRU:</b> 3 gates, \(h_t = (1-z)n + z\,h_{t-1}\).</li>
+    <li><b>Params:</b> RNN \(h(d+h+1)\), GRU \(3\times\), LSTM \(4\times\). Clip gradients (<code>clip_grad_norm_</code>) for exploding; <code>.detach()</code> the state between chunks for T-BPTT.</li>
+  </ol>
+</div>
+
 <div class="roadmap"><span class="label">On this page</span>
 <ol>
   <li><a href="#eq">1. RNN vs LSTM vs GRU Equations</a></li>
   <li><a href="#code">2. Manual PyTorch Code (Lab 11)</a></li>
   <li><a href="#params">3. Param Counting + Vanishing Gradients</a></li>
   <li><a href="#trace">4. Scalar Traces + Bug Drills + Practice</a></li>
-  <li><a href="#variants">5. Other Variants (Bi-RNN &amp; Attention)</a></li>
+  <li><a href="#variants">5. Bidirectional RNN</a></li>
 </ol></div>
 
 <h2 id="eq">1. RNN vs LSTM vs GRU Equations</h2>
@@ -177,7 +186,7 @@ for x, y in train_loader:
 
 <h2 id="trace">4. Scalar Traces + Bug Drills + Practice</h2>
 <div class="box-trace">
-  <span class="label">Quick Scalar Traces (`RNN.pdf` Q1 &amp; `LSTM-GRU.pdf` Q2, Q5)</span>
+  <span class="label">Quick Scalar Traces (RNN, LSTM, GRU)</span>
   <ul>
     <li><b>Scalar RNN:</b> \(h_0=0, w_h=0.5, w_x=1, x=(1,0,-1) \implies h_1=\tanh(1)=0.7616,\; h_2=\tanh(0.3808)=0.3634,\; h_3=\tanh(0.1817-1)=-0.6741\).</li>
     <li><b>Scalar LSTM:</b> \(c_{t-1}=0.8, f_t=0.9, i_t=0.2, g_t=-0.5, o_t=0.75 \implies c_t = 0.9(0.8)+0.2(-0.5) = \mathbf{0.6200},\; h_t = 0.75\tanh(0.62) = \mathbf{0.4133}\). After 20 steps: \(\partial c_{20}/\partial c_0 = 0.9^{20} = \mathbf{0.1216}\).</li>
@@ -186,23 +195,21 @@ for x, y in train_loader:
 </div>
 
 <div class="box-trap">
-  <span class="label">2 Must-Know Bug Hunts (`RNN.pdf` Q11 &amp; `LSTM-GRU.pdf` Q9)</span>
-  <p><b>1. BPTT Pseudocode (`RNN.pdf` Q11 — 3 bugs):</b></p>
+  <span class="label">2 Must-Know Bug Hunts</span>
+  <p><b>1. BPTT Pseudocode (3 bugs):</b></p>
 <pre style="margin:4px 0 10px;font:13px/1.45 var(--mono);overflow-x:auto">for t = T down to 1:
     delta_t = (d l_t / d h_t) * tanh'(a_t)  # BUG 1: ignores future gradient + W_h^T @ delta_{t+1}!
     grad_W_h = delta_t * h_{t-1}^T         # BUG 2: overwrites instead of accumulating (+=)!
     W_h = W_h - eta * grad_W_h             # BUG 3: updates shared W_h inside loop! (Clip + update AFTER loop)</pre>
-  <p><b>2. Buggy LSTM (`LSTM-GRU.pdf` Q9 — 2 bugs):</b></p>
+  <p><b>2. Buggy LSTM (2 bugs):</b></p>
   <p><code>c_t = tanh(f_t * c_{t-1} + i_t * g_t)</code> and <code>h_t = o_t * c_t</code>: (1) wrapping <code>c_t</code> in <code>tanh</code> kills the linear cell-state highway (causes vanishing gradients); (2) dropping <code>tanh</code> in <code>h_t = o_t * tanh(c_t)</code> lets <code>h_t</code> grow unbounded.</p>
 </div>
 
 <div class="gen" data-gen="rnn_params"></div>
 
-<h2 id="variants">5. Other RNN Variants (Brief Exam Summary)</h2>
+<h2 id="variants">5. One More Variant: Bidirectional RNN</h2>
 <ul>
-  <li><b>Bidirectional RNN:</b> Concatenates forward \(h_t^\rightarrow\) and backward \(h_t^\leftarrow\). Great for <b>sentiment analysis / NER</b> (full sentence visible); <b>unsuitable</b> for causal next-token prediction or live streaming speech because it needs future inputs \(x_{t+1..T}\).</li>
-  <li><b>Encoder–Decoder + Attention:</b> Avoids compressing a whole sequence into one fixed vector by computing context \(c_t = \sum_j \alpha_{tj} h_j\) with \(\alpha_t = \text{softmax}(e_t)\) (Bahdanau: \(v_a^T\tanh(W_a s_{t-1} + U_a h_j)\); Luong dot: \(s_t^T h_j\)).</li>
-  <li><b>Self-Attention (Transformer block):</b> \(\text{Attention}(Q,K,V) = \text{softmax}\!\left(\frac{QK^T}{\sqrt{d_k}} + M\right)V\). Divides by \(\sqrt{d_k}\) to stop softmax saturation; causal mask \(M_{ij}=-\infty\) for \(j&gt;i\) prevents peeking ahead; \(O(1)\) path length vs \(O(T)\) in RNNs.</li>
+  <li><b>Bidirectional RNN:</b> runs one RNN forward and one backward, then concatenates \(h_t^\rightarrow\) and \(h_t^\leftarrow\). Good when the whole sentence is available (sentiment, NER). <b>Not</b> usable for next-token prediction (like Lab 11) or live speech, because it needs future inputs \(x_{t+1..T}\).</li>
 </ul>
 
 <label class="done"><input type="checkbox" data-done="rnn"> Mark Topic 6 (RNN &amp; Variants) done</label>

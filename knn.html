@@ -30,6 +30,15 @@ window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]},svg
   <p class="lede">KNN fits no equation during training. It memorizes the training data; for any new query, it measures distances, grabs the <i>K</i> closest training points, and predicts the majority class.</p>
 </header>
 
+<div class="box-trick">
+  <span class="label">Remember just these 3 things</span>
+  <ol>
+    <li><b>Algorithm:</b> distance to every training point → <code>argsort</code> → take first K → majority vote.</li>
+    <li><b>Always scale</b> (StandardScaler inside a <code>Pipeline</code>), otherwise large-valued features dominate the distance.</li>
+    <li><b>Small K</b> = wiggly boundary, overfits (high variance). <b>Large K</b> = smooth, underfits (high bias). Use odd K for 2 classes.</li>
+  </ol>
+</div>
+
 <div class="roadmap"><span class="label">On this page</span>
 <ol>
   <li><a href="#intuition">1. Plain Intuition</a></li>
@@ -54,7 +63,7 @@ window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]},svg
     <li><b>Manhattan Distance:</b> \(d_1(x, z) = \sum_{j=1}^d |x_j - z_j|\)</li>
     <li><b>KNN Probability &amp; Prediction:</b> \(\hat{P}(Y=c\mid X=x) = \frac{1}{K}\sum_{i\in N_K(x)} \mathbf{1}(y_i = c), \quad \hat{y} = \arg\max_c \sum_{i\in N_K(x)} \mathbf{1}(y_i = c)\)</li>
     <li><b>Standardization:</b> \(z_j = \frac{x_j - \mu_j}{\sigma_j}\) (computed on training fold ONLY!)</li>
-    <li><b>Curse of Dimensionality:</b> Hypercube edge needed to capture fraction \(r\) of points in \(p\) dims is \(l_p(r) = r^{1/p}\) (e.g., \(p=10, r=0.1 \implies 0.1^{0.1} \approx 0.794\), so nearest neighbors stop being local).</li>
+    <li><b>Curse of Dimensionality:</b> with many features, all points look roughly equally far apart, so "nearest" neighbours stop being truly near and KNN gets worse.</li>
   </ul>
 </div>
 
@@ -121,7 +130,7 @@ test_acc = knn_grid.score(X_test, y_test)</code></pre>
     <li>\(d(x_q, B) = \sqrt{(3-2)^2+(2-1)^2} = \sqrt{2} \approx 1.4142\)</li>
     <li>\(d(x_q, C) = \sqrt{(3-4)^2+(2-3)^2} = \sqrt{2} \approx 1.4142\)</li>
     <li>\(d(x_q, D) = \sqrt{(3-5)^2+(2-4)^2} = \sqrt{8} \approx 2.8284\)</li>
-    <li>Nearest 3: \([B(0),\; C(1),\; A(0)] \implies\) counts `{0: 2, 1: 1}` &rarr; Predict <b>0</b>.</li>
+    <li>Nearest 3: \([B(0),\; C(1),\; A(0)] \implies\) votes: class 0 = 2, class 1 = 1 &rarr; Predict <b>0</b>.</li>
   </ol>
 </div>
 
@@ -139,7 +148,7 @@ test_acc = knn_grid.score(X_test, y_test)</code></pre>
 </details>
 <details class="check">
   <summary><span class="k">Check 2</span>What happened in Lab 6 Breast Cancer when scaling was removed?</summary>
-  <div class="ans"><p>5-fold CV accuracy dropped from <b>0.972</b> (with <code>StandardScaler</code> in Pipeline) to <b>0.946</b> (unscaled) because features like <i>area</i> (~1000) drowned out features like <i>smoothness</i> (~0.1).</p></div>
+  <div class="ans"><p>Best 5-fold CV accuracy was <b>0.9718</b> with <code>StandardScaler</code> in the Pipeline (best: manhattan, K=3, uniform) and dropped to <b>0.9460</b> without scaling, because features like <i>area</i> (~1000) drowned out features like <i>smoothness</i> (~0.1).</p></div>
 </details>
 
 <label class="done"><input type="checkbox" data-done="knn"> Mark Topic 3 (KNN) done</label>

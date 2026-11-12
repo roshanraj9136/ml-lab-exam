@@ -30,6 +30,15 @@ window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]},svg
   <p class="lede">Forward pass stacks <code>Linear &rarr; Activation</code>. Backward pass applies the chain rule from the output loss backwards to find every weight gradient, then an optimizer (SGD / Momentum / RMSprop / Adam) updates the weights.</p>
 </header>
 
+<div class="box-trick">
+  <span class="label">Remember just these 3 things</span>
+  <ol>
+    <li><b>Forward:</b> \(z = Wx + b\), \(a = g(z)\), layer by layer. Save every \(z\) and \(a\).</li>
+    <li><b>Backward:</b> output error \(\delta = \hat{y} - y\) (sigmoid+BCE or softmax+CE). Then \(dW = \delta\, a_{\text{prev}}^T\), and \(\delta_{\text{prev}} = (W^T\delta)\odot g'(z_{\text{prev}})\).</li>
+    <li><b>PyTorch loop:</b> <code>zero_grad() → loss = loss_fn(model(x), y) → loss.backward() → optimizer.step()</code>. Output raw logits with <code>BCEWithLogitsLoss</code>.</li>
+  </ol>
+</div>
+
 <div class="roadmap"><span class="label">On this page</span>
 <ol>
   <li><a href="#activations">1. Activations, Losses &amp; Init</a></li>
@@ -42,11 +51,10 @@ window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]},svg
 <h2 id="activations">1. Activations, Losses &amp; Formulas</h2>
 <div class="tbl"><table>
   <tr><th>Activation</th><th>Formula \(g(z)\)</th><th>Derivative \(g'(z)\)</th><th>Key Lab Note</th></tr>
-  <tr><td><b>Sigmoid</b></td><td>\(\frac{1}{1+e^{-z}}\)</td><td>\(\sigma(z)(1-\sigma(z)) \le \frac{1}{4}\)</td><td>Non-zero-centered; vanishes in deep nets (`5e-7` at 8 layers)</td></tr>
+  <tr><td><b>Sigmoid</b></td><td>\(\frac{1}{1+e^{-z}}\)</td><td>\(\sigma(z)(1-\sigma(z)) \le \frac{1}{4}\)</td><td>Not zero-centred; saturates, so gradients vanish in deep nets</td></tr>
   <tr><td><b>Tanh</b></td><td>\(2\sigma(2z)-1\)</td><td>\(1-\tanh^2(z) \le 1\)</td><td>Zero-centered; still saturates at large \(|z|\)</td></tr>
   <tr><td><b>ReLU</b></td><td>\(\max(0, z)\)</td><td>\(1\text{ if }z&gt;0\text{ else }0\)</td><td>Fast, no saturation for \(z&gt;0\), can suffer <b>dead units</b></td></tr>
-  <tr><td><b>Leaky ReLU</b></td><td>\(\max(\alpha z, z)\)</td><td>\(1\text{ if }z&gt;0\text{ else }\alpha\)</td><td>Lab 9 Ext 3 (`alpha=0.01`): fixes dead ReLUs</td></tr>
-  <tr><td><b>Swish</b></td><td>\(z\,\sigma(\beta z)\)</td><td>\(\sigma(\beta z) + \beta z\sigma(\beta z)(1-\sigma(\beta z))\)</td><td>\(\beta\to\infty \implies \text{ReLU}\); \(\beta\to 0 \implies z/2\)</td></tr>
+  <tr><td><b>Leaky ReLU</b></td><td>\(\max(\alpha z, z)\)</td><td>\(1\text{ if }z&gt;0\text{ else }\alpha\)</td><td>Lab 9 (<code>alpha=0.01</code>): fixes dead ReLUs</td></tr>
   <tr><td><b>Softmax</b></td><td>\(\frac{e^{a_k - m}}{\sum_j e^{a_j - m}}\)</td><td>Used with Cross-Entropy</td><td>Subtract \(m=\max(a)\) to prevent overflow!</td></tr>
 </table></div>
 
@@ -145,10 +153,10 @@ with torch.no_grad():
 
 <h2 id="opt">4. Optimizers &amp; Depth Takeaways (Lab 9)</h2>
 <ul>
-  <li><b>Anisotropic Bowl \(L(x,y) = 0.5(3x^2+y^2)\):</b> Max curvature \(\lambda_{\max}=3\), so GD diverges if \(\eta \ge 2/\lambda_{\max} = 2/3\).</li>
-  <li><b>Momentum (\(\beta=0.9\)):</b> Effective step along flat directions multiplies by \(\frac{1}{1-\beta} = 10\times\) (so Momentum at `lr=0.001` behaves like SGD at `lr=0.01`).</li>
-  <li><b>Overfitting vs Depth (Lab 8):</b> Deeper MLPs (`[128,64,32]`) overfit tiny tabular data earliest (val loss rose after epoch 11); a simple `LogisticRegression` even beat deep MLPs on Breast Cancer (`98.25%` vs `96.49%`).</li>
-  <li><b>8-Layer Sigmoid vs Adam (Lab 9 Ext 5):</b> Deep sigmoid nets crush gradients (`5e-7` at layer 1) so SGD/Momentum stall, whereas Adam rescales tiny gradients via \(\hat{m}/\sqrt{\hat{v}}\) and still trains.</li>
+  <li><b>Anisotropic Bowl \(L(x,y) = 0.5(3x^2+y^2)\):</b> Max curvature \(\lambda_{\max}=3\), so plain GD only converges if \(\eta &lt; 2/\lambda_{\max} = 2/3\) (bigger steps bounce out).</li>
+  <li><b>Momentum (\(\beta=0.9\)):</b> Effective step along flat directions multiplies by \(\frac{1}{1-\beta} = 10\times\) (so Momentum at <code>lr=0.001</code> behaves roughly like SGD at <code>lr=0.01</code>).</li>
+  <li><b>Overfitting vs Depth (Lab 8):</b> Deeper MLPs overfit small tabular data sooner (validation loss starts rising while training loss keeps falling), and a simple <code>LogisticRegression</code> can match or beat a deep MLP on Breast Cancer. Bigger is not always better.</li>
+  <li><b>Deep Sigmoid vs Adam (Lab 9):</b> In a deep sigmoid net each layer multiplies the gradient by \(\sigma' \le 0.25\), so early-layer gradients become tiny and SGD/Momentum stall. Adam divides by \(\sqrt{\hat{v}}\), which rescales tiny gradients, so it still trains.</li>
 </ul>
 
 <h2 id="trace">5. Hand Backprop Trace + 4-Bug Drill + Practice</h2>
@@ -172,7 +180,8 @@ for k = L down to 1:
     grad_b_k = grad_a_k
     W_k = W_k - eta * grad_W_k               # BUG 2: updates W_k BEFORE computing grad_h_(k-1)!
     grad_h_(k-1) = W_k * grad_a_k            # BUG 3: missing transpose! Should be old_W_k^T * grad_a_k
-    grad_a_(k-1) = grad_h_(k-1) .* g'(a_k)   # BUG 4: wrong index g'(a_k) &amp; runs at k=1 -&gt; g'(a_(k-1)) for k&gt;1</pre>
+    grad_a_(k-1) = grad_h_(k-1) .* g'(a_k)   # BUG 4: should be g'(a_(k-1)); and skip this line when k = 1</pre>
+  <p style="margin:6px 0 0"><b>Fixed order:</b> compute <code>grad_W_k = grad_a_k · h_(k-1)^T</code> → <code>grad_h_(k-1) = W_k^T · grad_a_k</code> (old W) → <code>grad_a_(k-1) = grad_h_(k-1) ⊙ g'(a_(k-1))</code> → only then update <code>W_k</code>.</p>
 </div>
 
 <div class="gen" data-gen="nn_step"></div>

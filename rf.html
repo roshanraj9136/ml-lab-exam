@@ -20,7 +20,7 @@ window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]},svg
 <nav class="topnav" aria-label="Pages"><a href="./" class="home">Home</a><a href="dt.html">1 · Decision Tree</a><a href="rf.html" aria-current="page">2 · Random Forest</a><a href="knn.html">3 · KNN</a><a href="nn.html">4 · Neural Nets</a><a href="cnn.html">5 · CNN</a><a href="rnn.html">6 · RNN & Variants</a><a href="cheatsheet.html">Cheat Sheet</a><button type="button" class="theme-btn" id="theme-toggle" aria-label="Toggle color theme">Theme</button></nav>
 <div class="wrap">
 <header class="top">
-  <div class="kicker">Topic 2 · Lab 7 (Part B + Part C Contrast)</div>
+  <div class="kicker">Topic 2 · Lab 7 (Part B)</div>
   <h1>Random Forest</h1>
   <div class="meta">
     <span class="pill green">Scratch NumPy</span>
@@ -30,12 +30,21 @@ window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]},svg
   <p class="lede">A single deep tree memorizes noise (high variance). Random Forest fixes this by training many trees on bootstrap samples and letting each split see only a random subset of features, then majority-voting.</p>
 </header>
 
+<div class="box-trick">
+  <span class="label">Remember just these 3 things</span>
+  <ol>
+    <li><b>Bootstrap:</b> each tree trains on \(n\) rows drawn <i>with replacement</i> → ~63.2% unique rows, ~36.8% left out (OOB).</li>
+    <li><b>Random features:</b> each split looks at only \(m=\sqrt{p}\) features (<code>max_features="sqrt"</code>) → trees become less alike.</li>
+    <li><b>Predict:</b> every tree votes, take the <b>majority</b>. Variance \(= \rho\sigma^2 + \frac{1-\rho}{B}\sigma^2\).</li>
+  </ol>
+</div>
+
 <div class="roadmap"><span class="label">On this page</span>
 <ol>
   <li><a href="#intuition">1. Plain Intuition</a></li>
   <li><a href="#formulas">2. OOB &amp; Variance Formulas</a></li>
   <li><a href="#code">3. Pen-and-Paper Code (Lab 7)</a></li>
-  <li><a href="#compare">4. Bagging vs RF vs AdaBoost</a></li>
+  <li><a href="#compare">4. Tree vs Bagging vs RF</a></li>
   <li><a href="#drill">5. Practice + Self-Checks</a></li>
 </ol></div>
 
@@ -119,31 +128,24 @@ class RandomForestScratch:
   <p><code>RandomForestScratch.fit</code> = loop <code>n_trees</code> times: <code>bootstrap_sample(replace=True)</code> &rarr; create <code>DecisionTreeScratch(max_features="sqrt")</code> &rarr; <code>tree.fit(X_boot, y_boot)</code>. Predict = stack all tree predictions and take column-wise <code>majority_vote</code>.</p>
 </div>
 
-<h2 id="compare">4. Bagging vs Random Forest vs AdaBoost (Lab 7 Part C)</h2>
+<h2 id="compare">4. Single Tree vs Bagging vs Random Forest</h2>
 <div class="tbl"><table>
-  <tr><th>Method</th><th>Training Order</th><th>Bootstrap?</th><th>Feature Subsample?</th><th>Main Goal</th></tr>
-  <tr><td><b>Bagging</b></td><td>Parallel</td><td>Yes</td><td>No (\(m = p\))</td><td>Reduce variance</td></tr>
-  <tr><td><b>Random Forest</b></td><td>Parallel</td><td>Yes</td><td>Yes (\(m = \sqrt{p}\))</td><td>Reduce variance + decorrelate trees (\(\downarrow \rho\))</td></tr>
-  <tr><td><b>AdaBoost (Lab 7 C)</b></td><td>Sequential (stumps)</td><td>No (reweights samples)</td><td>No</td><td>Reduce bias</td></tr>
+  <tr><th>Method</th><th>Bootstrap rows?</th><th>Random features per split?</th><th>Result</th></tr>
+  <tr><td><b>Single Decision Tree</b></td><td>No</td><td>No</td><td>Low bias, <b>high variance</b></td></tr>
+  <tr><td><b>Bagging</b></td><td>Yes</td><td>No (\(m = p\))</td><td>Lower variance, but trees still correlated</td></tr>
+  <tr><td><b>Random Forest</b></td><td>Yes</td><td>Yes (\(m = \sqrt{p}\))</td><td>Lowest variance: trees decorrelated (\(\downarrow \rho\))</td></tr>
 </table></div>
-
-<div class="box-trace">
-  <span class="label">Bonus · AdaBoost Formulas (Also in Lab 7 Part C!)</span>
-  <p>Map \(y \in \{0,1\} \to \{-1,+1\}\), initialize \(w_i = 1/n\), fit depth-1 stump:</p>
-  \[\text{err}_m = \sum_i w_i \mathbf{1}(y_i \neq \hat{y}_i), \quad \alpha_m = \frac{1}{2}\ln\!\left(\frac{1-\text{err}_m}{\text{err}_m}\right)\cdot \eta, \quad w_i \leftarrow \frac{w_i e^{-\alpha_m y_i \hat{y}_i}}{\sum_j w_j}\]
-  <p>Final prediction: \(\hat{y} = \mathbf{1}\!\left(\sum_{m=1}^{M} \alpha_m h_m(x) \ge 0\right)\).</p>
-</div>
 
 <h2 id="drill">5. Practice + Self-Checks</h2>
 <div class="gen" data-gen="rf_var"></div>
 
 <details class="check">
   <summary><span class="k">Check 1</span>Does increasing <code>n_trees</code> in Random Forest cause overfitting?</summary>
-  <div class="ans"><p>No! More trees only tighten the ensemble average toward \(\rho\sigma^2\) without overfitting (unlike Boosting, where too many sequential rounds can overfit noisy points).</p></div>
+  <div class="ans"><p>No. More trees only make the average more stable (variance falls towards \(\rho\sigma^2\)); they just cost more time.</p></div>
 </details>
 <details class="check">
-  <summary><span class="k">Check 2</span>In Lab 7 Task 1, how did Gini vs Entropy compare on the binary Iris split?</summary>
-  <div class="ans"><p>Both single DT and RF (`n_trees=30, max_depth=5, max_features="sqrt"`) got identical <b>80.0%</b> test accuracy (`0.8000` macro F1) because Gini and Entropy rank splits almost identically.</p></div>
+  <summary><span class="k">Check 2</span>In Lab 7, how did Gini vs Entropy compare on the binary Iris split?</summary>
+  <div class="ans"><p>Single DT and RF (<code>n_trees=30, max_depth=5, max_features="sqrt"</code>) both got <b>0.80</b> test accuracy, and switching to Entropy kept both at <b>0.80</b>, because Gini and Entropy rank splits almost identically.</p></div>
 </details>
 
 <label class="done"><input type="checkbox" data-done="rf"> Mark Topic 2 (Random Forest) done</label>

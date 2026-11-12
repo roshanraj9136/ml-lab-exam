@@ -125,15 +125,18 @@
     knn_dist: {
       title: 'Quick Drill · Euclidean Distance & K=3 Vote (Lab 6)',
       make() {
-        const pts = [
-          { x: [rint(0, 3), rint(0, 3)], y: 0 },
-          { x: [rint(1, 4), rint(1, 4)], y: 0 },
-          { x: [rint(3, 6), rint(3, 6)], y: 1 },
-          { x: [rint(4, 7), rint(4, 7)], y: 1 }
-        ];
-        const q = [rint(2, 5), rint(2, 5)];
-        const ds = pts.map((p) => Math.hypot(p.x[0] - q[0], p.x[1] - q[1]));
-        const order = [0, 1, 2, 3].sort((i, j) => ds[i] - ds[j]);
+        let pts, q, ds, order;
+        do {
+          pts = [
+            { x: [rint(0, 3), rint(0, 3)], y: 0 },
+            { x: [rint(1, 4), rint(1, 4)], y: 0 },
+            { x: [rint(3, 6), rint(3, 6)], y: 1 },
+            { x: [rint(4, 7), rint(4, 7)], y: 1 }
+          ];
+          q = [rint(2, 5), rint(2, 5)];
+          ds = pts.map((p) => Math.hypot(p.x[0] - q[0], p.x[1] - q[1]));
+          order = [0, 1, 2, 3].sort((i, j) => ds[i] - ds[j]);
+        } while (Math.abs(ds[order[2]] - ds[order[3]]) < 1e-9); // avoid ambiguous 3rd/4th tie
         const k3 = order.slice(0, 3);
         const votes1 = k3.filter((i) => pts[i].y === 1).length;
         const pred = votes1 >= 2 ? 1 : 0;
